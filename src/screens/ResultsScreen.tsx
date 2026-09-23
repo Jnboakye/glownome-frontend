@@ -1,122 +1,264 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, View } from 'react-native';
-import { Card, Chip, Text } from 'react-native-paper';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { Card, IconButton, Text } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
+  EmptyState,
   GlowBackground,
   MetricBar,
+  NextSteps,
   PrimaryButton,
-  ProductCard,
-  ScoreDial,
+  ProductCarousel,
+  Recommendation,
+  ScanImage,
+  ScoreCard,
   SectionTitle,
+  SkinProfileCard,
+  ProfileRow,
 } from '../components';
 import { RootStackParamList } from '../navigation/types';
-import { getAnalysis, getProductsByIds } from '../api';
-import { Product, SkinAnalysis } from '../api/types';
-import { fonts, palette, shadow } from '../theme';
+import { AnalysisUnavailableError, getProductsByIds, getScan, requestAnalysis } from '../api';
+import { ScanRecord } from '../api/scans';
+import { SkinAnalysis } from '../api/types';
+import { useUser } from '../hooks/userContext';
+import { labelFor } from '../data/onboardingQuestions';
+import { palette, shadow } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Results'>;
 
+type Status = 'loading' | 'unavailable' | 'ready' | 'missing';
+
+const DISCLAIMER =
+  'This analysis is not a substitute for professional dermatology advice. See a dermatologist for anything painful, spreading or changing.';
+
 export function ResultsScreen({ route, navigation }: Props) {
-  const { analysisId } = route.params;
+  const { scanId } = route.params;
+  const { profile } = useUser();
+
+  const [scan, setScan] = useState<ScanRecord | null>(null);
   const [analysis, setAnalysis] = useState<SkinAnalysis | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [status, setStatus] = useState<Status>('loading');
+
+  const load = useCallback(async () => {
+    setStatus('loading');
+    const record = await getScan(scanId);
+    if (!record) {
+      setStatus('missing');
+      return;
+    }
+    setScan(record);
+
+    // Already analysed on a previous visit.
+    if (record.analysis) {
+      setAnalysis(record.analysis);
+      setStatus('ready');
+      return;
+    }
+
+    try {
+      const result = await requestAnalysis(record);
+      setAnalysis(result);
+      const products = await getProductsByIds(result.recommendations.map((r) => r.productId));
+      setRecommendations(
+        result.recommendations
+          .map((rec) => {
+            const product = products.find((p) => p.id === rec.productId);
+            return product ? { product, reason: rec.reason } : null;
+          })
+          .filter((r): r is Recommendation => r !== null),
+      );
+      setStatus('ready');
+    } catch (error) {
+      // No backend yet, or the request failed. Either way, invent nothing.
+      setStatus(error instanceof AnalysisUnavailableError ? 'unavailable' : 'unavailable');
+    }
+  }, [scanId]);
 
   useEffect(() => {
-    let cancelled = false;
-    getAnalysis(analysisId).then(async (result) => {
-      if (cancelled) return;
-      setAnalysis(result);
-      const matched = await getProductsByIds(result.recommendedProductIds);
-      if (!cancelled) setProducts(matched);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [analysisId]);
+    void load();
+  }, [load]);
 
-  if (!analysis) {
+  // The questionnaire answers are real today, so they can be shown whether or
+  // not the photo has been analysed.
+  const profileRows: ProfileRow[] = [
+    profile?.concern?.length
+      ? {
+          icon: 'target-variant',
+          label: 'Main concern',
+          value: labelFor('concern', profile.concern),
+          fromYou: true,
+        }
+      : null,
+    profile?.routine
+      ? {
+          icon: 'clipboard-list-outline',
+          label: 'Starting point',
+          value: labelFor('routine', profile.routine),
+          fromYou: true,
+        }
+      : null,
+    analysis
+      ? { icon: 'face-woman-shimmer-outline', label: 'Skin type', value: analysis.skinType }
+      : null,
+  ].filter((row): row is ProfileRow => row !== null);
+
+  const header = (
+    <View className="flex-row items-center px-md pt-sm">
+      <IconButton
+        icon="chevron-left"
+        size={26}
+        iconColor={palette.ink}
+        onPress={() => navigation.goBack()}
+        accessibilityLabel="Back"
+      />
+      <Text className="font-title text-heading text-ink">Results</Text>
+    </View>
+  );
+
+  if (status === 'loading') {
     return (
       <GlowBackground variant="mist">
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={palette.ink} />
-          <Text className="font-body text-body text-ink-soft mt-md">Reading your scan…</Text>
-        </View>
+        <SafeAreaView className="flex-1" edges={['top']}>
+          {header}
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator color={palette.ink} />
+          </View>
+        </SafeAreaView>
+      </GlowBackground>
+    );
+  }
+
+  if (status === 'missing') {
+    return (
+      <GlowBackground variant="mist">
+        <SafeAreaView className="flex-1" edges={['top']}>
+          {header}
+          <View className="flex-1 justify-center">
+            <EmptyState
+              icon="image-off-outline"
+              title="Scan not found"
+              body="It may have been cleared from this device."
+              action={
+                <PrimaryButton
+                  label="Take a new scan"
+                  onPress={() => navigation.replace('ScanCapture')}
+                />
+              }
+            />
+          </View>
+        </SafeAreaView>
       </GlowBackground>
     );
   }
 
   return (
     <GlowBackground variant="mist">
-      <ScrollView contentContainerClassName="pb-huge" showsVerticalScrollIndicator={false}>
-        <View className="flex-row items-center px-gutter pt-sm">
-          {analysis.photoUri ? (
-            <Image
-              source={{ uri: analysis.photoUri }}
-              className="w-[68px] h-[84px] rounded-md mr-lg bg-sunk"
-              resizeMode="cover"
-            />
+      <SafeAreaView className="flex-1" edges={['top']}>
+        {header}
+
+        <ScrollView contentContainerClassName="pb-huge" showsVerticalScrollIndicator={false}>
+          {scan ? (
+            <View className="px-gutter">
+              <ScanImage uri={scan.photoUri} capturedAt={scan.capturedAt} mode={scan.mode} />
+            </View>
           ) : null}
-          <View className="flex-1">
-            <Text className="font-ui text-caption text-accent mb-xs">
-              {analysis.skinType.toUpperCase()}
-            </Text>
-            <Text className="font-title text-title text-ink">{analysis.headline}</Text>
-          </View>
-        </View>
 
-        <View className="px-gutter mt-2xl">
-          <ScoreDial
-            score={analysis.overallScore}
-            caption="Your overall skin score. Rescan in four weeks to see it move."
-          />
-        </View>
+          {status === 'unavailable' || !analysis ? (
+            <>
+              <EmptyState
+                icon="cloud-off-outline"
+                title="Analysis unavailable"
+                body="Your photo is saved on this device. Skin analysis turns on once the Claude endpoint is connected."
+                action={<PrimaryButton label="Try again" onPress={() => void load()} />}
+              />
 
-        <View className="px-gutter mt-2xl">
-          <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
-            <Card.Content>
-              <Text className="font-ui text-caption text-ink-faint mb-sm">WHAT THE SCAN SHOWS</Text>
-              <Text className="font-body text-body text-ink-soft">{analysis.summary}</Text>
-            </Card.Content>
-          </Card>
-        </View>
+              {profileRows.length > 0 ? (
+                <View className="px-gutter mt-sm">
+                  <SectionTitle title="What we know so far" />
+                  <SkinProfileCard rows={profileRows} />
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <View className="px-gutter mt-2xl">
+                <ScoreCard score={analysis.overallScore} />
+              </View>
 
-        <View className="px-gutter mt-2xl">
-          <SectionTitle title="The breakdown" />
-          {analysis.metrics.map((metric) => (
-            <MetricBar key={metric.key} metric={metric} />
-          ))}
-        </View>
+              <View className="px-gutter mt-2xl">
+                <SectionTitle title="Your skin profile" />
+                <SkinProfileCard rows={profileRows} />
+              </View>
 
-        <View className="px-gutter mt-2xl">
-          <SectionTitle
-            title="Your routine"
-            trailing={
-              <Chip
-                compact
-                className="bg-accent-soft"
-                textStyle={{ color: palette.accent, fontFamily: fonts.ui, fontSize: 12 }}
-              >
-                {`${products.length} products`}
-              </Chip>
-            }
-          />
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
+              {analysis.findings.length > 0 ? (
+                <View className="px-gutter mt-2xl">
+                  <SectionTitle title="What the scan shows" />
+                  <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
+                    <Card.Content>
+                      <Text className="font-body text-body text-ink-soft">{analysis.summary}</Text>
+                      <View className="mt-lg">
+                        {analysis.findings.map((finding) => (
+                          <View key={finding} className="flex-row items-start mb-sm">
+                            <View className="w-[5px] h-[5px] rounded-pill bg-accent mt-[8px] mr-md" />
+                            <Text className="font-body text-body-sm text-ink-soft flex-1">
+                              {finding}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </Card.Content>
+                  </Card>
+                </View>
+              ) : null}
+
+              {analysis.metrics.length > 0 ? (
+                <View className="px-gutter mt-2xl">
+                  <SectionTitle title="The breakdown" />
+                  {analysis.metrics.map((metric) => (
+                    <MetricBar key={metric.key} metric={metric} />
+                  ))}
+                </View>
+              ) : null}
+
+              <View className="mt-2xl">
+                <View className="px-gutter">
+                  <SectionTitle title="Personalised for you" />
+                </View>
+                {recommendations.length > 0 ? (
+                  <ProductCarousel
+                    items={recommendations}
+                    onPress={(productId) => navigation.navigate('ProductDetail', { productId })}
+                  />
+                ) : (
+                  <View className="px-gutter">
+                    <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
+                      <Card.Content>
+                        <Text className="font-body text-body-sm text-ink-faint">
+                          Building your profile — recommendations arrive with the product
+                          catalogue.
+                        </Text>
+                      </Card.Content>
+                    </Card>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+
+          <View className="px-gutter mt-3xl">
+            <NextSteps
+              onStartRoutine={() => navigation.navigate('Main', { screen: 'Scan' })}
+              onTrackProgress={() => navigation.navigate('Main', { screen: 'Progress' })}
             />
-          ))}
-        </View>
+          </View>
 
-        <View className="px-gutter mt-2xl">
-          <PrimaryButton
-            label="Save to my progress"
-            onPress={() => navigation.navigate('Main', { screen: 'Progress' })}
-          />
-        </View>
-      </ScrollView>
+          <View className="px-gutter mt-xl">
+            <Text className="font-body text-body-sm text-ink-faint text-center">{DISCLAIMER}</Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </GlowBackground>
   );
 }

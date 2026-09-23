@@ -76,4 +76,13 @@ export interface ScanCaptureResult {
   /** Populated only once a native depth module exists. */
   depthMapUri?: string;
   capturedAt: string;
+  /**
+   * The image bytes, base64, without the data: prefix.
+   *
+   * The server cannot read a file:// path off the phone, so the upload has to
+   * carry the bytes. Both capture paths can produce this for free —
+   * `takePictureAsync({ base64: true })` and the image picker's `base64`
+   * option — which is why there is no file-system dependency here.
+   */
+  base64?: string;
 }

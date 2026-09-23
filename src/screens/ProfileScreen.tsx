@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import { Card, Divider, List, Switch, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GlowBackground, PrimaryButton, ScreenHeader, SectionTitle } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { useOnboardingContext } from '../hooks/onboardingContext';
-import { CURRENT_USER } from '../data/user';
+import { clearScans, listScans } from '../api';
 import { initialsOf, useUser } from '../hooks/userContext';
 import { labelFor } from '../data/onboardingQuestions';
 import { fonts, palette, shadow } from '../theme';
@@ -26,17 +26,29 @@ export function ProfileScreen() {
   const [scanReminders, setScanReminders] = useState(true);
   const [routineNudges, setRoutineNudges] = useState(true);
   const [storePhotos, setStorePhotos] = useState(false);
+  const [scanCount, setScanCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    listScans().then((scans) => {
+      if (!cancelled) setScanCount(scans.length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const initials = initialsOf(name);
 
   const onReplayOnboarding = useCallback(async () => {
     await clearUser();
+    await clearScans();
     await reset();
     navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
   }, [clearUser, navigation, reset]);
 
   const onLogout = useCallback(() => {
-    Alert.alert('Log out', 'This clears your name and shows the intro again.', [
+    Alert.alert('Log out', 'This clears your name, your answers and every scan on this device.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Log out',
@@ -72,22 +84,16 @@ export function ProfileScreen() {
               </Card.Content>
               <Divider className="bg-outline" />
               <Card.Content className="flex-row py-lg gap-lg">
-                <View className="flex-1">
+                <View className="flex-[2]">
                   <Text className="font-ui text-caption text-ink-faint mb-px">MAIN CONCERN</Text>
-                  {/* From the onboarding wizard when it was answered. */}
+                  {/* Straight from the onboarding wizard. Nothing invented. */}
                   <Text className="font-ui text-label text-ink" numberOfLines={2}>
-                    {profile?.concern?.length
-                      ? labelFor('concern', profile.concern)
-                      : CURRENT_USER.skinType}
+                    {profile?.concern?.length ? labelFor('concern', profile.concern) : 'Not set'}
                   </Text>
                 </View>
                 <View className="flex-1">
                   <Text className="font-ui text-caption text-ink-faint mb-px">SCANS</Text>
-                  <Text className="font-ui text-label text-ink">{CURRENT_USER.scanCount}</Text>
-                </View>
-                <View className="flex-1">
-                  <Text className="font-ui text-caption text-ink-faint mb-px">MEMBER SINCE</Text>
-                  <Text className="font-ui text-label text-ink">{CURRENT_USER.memberSince}</Text>
+                  <Text className="font-ui text-label text-ink">{scanCount}</Text>
                 </View>
               </Card.Content>
             </Card>

@@ -116,7 +116,7 @@ export function RootNavigator() {
           <Stack.Screen
             name="Results"
             component={ResultsScreen}
-            options={{ title: 'Your skin analysis' }}
+            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="ProductDetail"

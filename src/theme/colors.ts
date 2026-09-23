@@ -17,6 +17,16 @@ export type ScoreTone = { color: string; soft: string; bar: string; label: strin
  * `bar` and `soft` are class names rather than hex, so the tone can be applied
  * with className where the value is dynamic.
  */
+/**
+ * The sentence that goes under the score. Lives beside toneForScore so the
+ * colour and the words can never disagree about the same number.
+ */
+export function interpretationForScore(score: number): string {
+  if (score >= 75) return 'Healthy';
+  if (score >= 50) return 'Good, with some concerns';
+  return 'Needs attention';
+}
+
 export function toneForScore(score: number): ScoreTone {
   if (score >= 75) {
     return { color: palette.sage, soft: 'bg-sage-soft', bar: 'bg-sage', label: 'thriving' };

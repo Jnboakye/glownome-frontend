@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SkinProfile } from '../data/onboardingQuestions';
+import { clearUserId, syncProfile } from '../api/identity';
 
 const KEY = 'glownome.profile.answers.v1';
 
@@ -41,6 +42,15 @@ export function useStoredProfile() {
     } catch {
       // Non-fatal: the answers simply won't survive a restart.
     }
+    try {
+      // Creates the server-side profile the first time, updates it after.
+      // Without this the server has no concerns for the user, and an analysis
+      // can never recommend anything.
+      await syncProfile(value);
+    } catch {
+      // Non-fatal and deliberately quiet: the wizard must not fail because the
+      // backend is unreachable. The next save retries.
+    }
   }, []);
 
   const clearProfile = useCallback(async () => {
@@ -50,6 +60,9 @@ export function useStoredProfile() {
     } catch {
       // Non-fatal.
     }
+    // "Replay the intro" starts a genuinely new user, so the server-side
+    // identity goes with it rather than leaving the next profile orphaned.
+    await clearUserId();
   }, []);
 
   return { loading, profile, setProfile, clearProfile };

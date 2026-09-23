@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GlowBackground, PrimaryButton, ScreenHeader } from '../components';
 import { RootStackParamList } from '../navigation/types';
-import { analyseSkin } from '../api';
+import { saveScan } from '../api';
 import { firstNameOf, useUser } from '../hooks/userContext';
 import { shadow } from '../theme';
 
@@ -23,58 +23,52 @@ export function ScanScreen() {
   const navigation = useNavigation<Nav>();
   const { name } = useUser();
   const [photoUri, setPhotoUri] = useState<string | undefined>();
-  const [analysing, setAnalysing] = useState(false);
+  const [photoBase64, setPhotoBase64] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  const pick = useCallback(async (source: 'camera' | 'library') => {
+  const pickFromLibrary = useCallback(async () => {
     setError(undefined);
     try {
-      const permission =
-        source === 'camera'
-          ? await ImagePicker.requestCameraPermissionsAsync()
-          : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setError(
-          source === 'camera'
-            ? 'Camera access is off. Enable it in Settings to scan.'
-            : 'Photo access is off. Enable it in Settings to choose a photo.',
-        );
+        setError('Photo access is off. Enable it in Settings to choose a photo.');
         return;
       }
-
-      const options: ImagePicker.ImagePickerOptions = {
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [3, 4],
         quality: 0.85,
-      };
-
-      const result =
-        source === 'camera'
-          ? await ImagePicker.launchCameraAsync(options)
-          : await ImagePicker.launchImageLibraryAsync(options);
-
+        // The server needs the bytes, not a file:// path the phone owns.
+        base64: true,
+      });
       if (!result.canceled && result.assets.length > 0) {
         setPhotoUri(result.assets[0].uri);
+        setPhotoBase64(result.assets[0].base64 ?? undefined);
       }
     } catch {
-      setError('Something went wrong opening the camera. Please try again.');
+      setError('Something went wrong opening your library. Please try again.');
     }
   }, []);
 
-  const onAnalyse = useCallback(async () => {
-    setAnalysing(true);
-    setError(undefined);
+  const useThisPhoto = useCallback(async () => {
+    if (!photoUri) return;
+    setSaving(true);
     try {
-      const analysis = await analyseSkin(photoUri);
-      navigation.navigate('Results', { analysisId: analysis.id });
+      const scan = await saveScan({
+        photoUri,
+        mode: '2d-guided',
+        capturedAt: new Date().toISOString(),
+        base64: photoBase64,
+      });
+      navigation.navigate('Results', { scanId: scan.id });
     } catch {
-      setError('The analysis could not be completed. Please try again.');
+      setError('That photo could not be saved. Please try again.');
     } finally {
-      setAnalysing(false);
+      setSaving(false);
     }
-  }, [navigation, photoUri]);
+  }, [navigation, photoBase64, photoUri]);
 
   return (
     <GlowBackground>
@@ -83,7 +77,7 @@ export function ScanScreen() {
           <ScreenHeader
             eyebrow={firstNameOf(name) ? `Hello, ${firstNameOf(name)}` : 'Step one'}
             title="Scan your skin"
-            subtitle="One clear photo is all it takes. Nothing leaves your phone until you tap scan."
+            subtitle="One clear photo is all it takes. It stays on your phone."
           />
 
           <View className="px-gutter">
@@ -94,7 +88,7 @@ export function ScanScreen() {
                 <View className="flex-1 items-center justify-center p-2xl">
                   <Text className="font-title text-heading text-ink-soft">No photo yet</Text>
                   <Text className="font-body text-body-sm text-ink-faint mt-xs text-center">
-                    Take a fresh one or pick from your library
+                    Open the camera, or pick one from your library
                   </Text>
                 </View>
               )}
@@ -119,35 +113,24 @@ export function ScanScreen() {
 
           <View className="px-gutter mt-2xl">
             <PrimaryButton
-              label="Take a photo"
-              icon="camera-outline"
-              variant="outline"
-              onPress={() => void pick('camera')}
+              label="Open the camera"
+              icon="camera-iris"
+              onPress={() => navigation.navigate('ScanCapture')}
               className="mb-md"
             />
             <PrimaryButton
               label="Choose from library"
               icon="image-outline"
               variant="outline"
-              onPress={() => void pick('library')}
+              onPress={() => void pickFromLibrary()}
               className="mb-md"
             />
-            <PrimaryButton
-              label="Open the camera"
-              icon="camera-iris"
-              onPress={() => navigation.navigate('ScanCapture')}
-            />
-            <View className="h-md" />
-            <PrimaryButton
-              label={analysing ? 'Analysing…' : 'Use this photo'}
-              onPress={() => void onAnalyse()}
-              loading={analysing}
-              disabled={!photoUri}
-            />
-            {!photoUri ? (
-              <Text className="font-body text-body-sm text-ink-faint text-center mt-md">
-                Add a photo above to unlock the scan
-              </Text>
+            {photoUri ? (
+              <PrimaryButton
+                label={saving ? 'Saving…' : 'Use this photo'}
+                onPress={() => void useThisPhoto()}
+                loading={saving}
+              />
             ) : null}
           </View>
         </ScrollView>

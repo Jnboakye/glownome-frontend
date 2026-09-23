@@ -15,7 +15,7 @@ export type RootStackParamList = {
   OnboardingProfile: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   ScanCapture: undefined;
-  Results: { analysisId: string };
+  Results: { scanId: string };
   ProductDetail: { productId: string };
 };
 

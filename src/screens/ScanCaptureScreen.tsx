@@ -10,7 +10,7 @@ import { FaceMesh, PrimaryButton } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { getScanCapability, LightingQuality, ScanCapability } from '../api/scanCapture';
 import { useScanSignals } from '../hooks/useScanSignals';
-import { analyseSkin } from '../api';
+import { saveScan } from '../api';
 import { palette } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ScanCapture'>;
@@ -56,17 +56,29 @@ export function ScanCaptureScreen({ navigation }: Props) {
     setCapturing(true);
     setError(undefined);
     try {
-      const photo = await camera.current.takePictureAsync({ quality: 0.85, skipProcessing: true });
+      const photo = await camera.current.takePictureAsync({
+        quality: 0.85,
+        skipProcessing: true,
+        // The server cannot read a file:// path off the phone.
+        base64: true,
+      });
       if (!photo?.uri) throw new Error('no image');
 
-      // The depth map would be attached here once a native module produces one.
-      const analysis = await analyseSkin(photo.uri);
-      navigation.replace('Results', { analysisId: analysis.id });
+      // Save the capture and stop. No analysis is invented here — the Results
+      // screen asks the backend, and says so plainly when there isn't one.
+      // A depth map would be attached here once a native module produces one.
+      const scan = await saveScan({
+        photoUri: photo.uri,
+        mode: capability?.mode ?? '2d-guided',
+        capturedAt: new Date().toISOString(),
+        base64: photo.base64 ?? undefined,
+      });
+      navigation.replace('Results', { scanId: scan.id });
     } catch {
       setError('That scan did not go through. Try again.');
       setCapturing(false);
     }
-  }, [capturing, navigation]);
+  }, [capability, capturing, navigation]);
 
   // ── permission gate ────────────────────────────────────────────────────────
   if (!permission) {
@@ -182,10 +194,7 @@ export function ScanCaptureScreen({ navigation }: Props) {
           {capturing ? (
             <View className="items-center">
               <ActivityIndicator color={palette.white} />
-              <Text className="font-ui text-subheading text-white mt-md">Analysing…</Text>
-              <Text className="font-body text-body-sm text-white/55 mt-xs">
-                Reading hydration, texture, tone and calmness
-              </Text>
+              <Text className="font-ui text-subheading text-white mt-md">Saving your scan…</Text>
             </View>
           ) : (
             <>
