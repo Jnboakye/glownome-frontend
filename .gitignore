@@ -42,3 +42,6 @@ yarn-error.*
 
 # Local API pointer — never commit a machine-specific URL
 .env
+
+# Cowork verification scratch (tarballs) — never commit
+verify/
