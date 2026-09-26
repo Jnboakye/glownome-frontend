@@ -66,7 +66,6 @@ export function ScanCaptureScreen({ navigation }: Props) {
 
       // Save the capture and stop. No analysis is invented here — the Results
       // screen asks the backend, and says so plainly when there isn't one.
-      // A depth map would be attached here once a native module produces one.
       const scan = await saveScan({
         photoUri: photo.uri,
         mode: capability?.mode ?? '2d-guided',
@@ -227,11 +226,9 @@ export function ScanCaptureScreen({ navigation }: Props) {
                 </View>
               </TouchableRipple>
 
-              {capability && capability.mode === '2d-guided' ? (
-                <Text className="font-ui text-caption text-white/45 mt-md">
-                  2D SCAN · NO DEPTH SENSOR IN USE
-                </Text>
-              ) : null}
+              <Text className="font-ui text-caption text-white/45 mt-md">
+                2D SCAN · NO DEPTH SENSOR IN USE
+              </Text>
             </>
           )}
         </View>
@@ -252,7 +249,7 @@ export function ScanCaptureScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  spotlightWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  spotlightWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   spotlight: {
     width: GUIDE,
     height: GUIDE * 1.12,
@@ -260,7 +257,7 @@ const styles = StyleSheet.create({
     borderWidth: 900,
     borderColor: 'rgba(9,9,11,0.62)',
   },
-  guideWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  guideWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   guideRing: {
     position: 'absolute',
     width: GUIDE,

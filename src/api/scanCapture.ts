@@ -2,48 +2,48 @@
  * The seam between the scan UI and the native capabilities it wants.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * WHY THIS FILE EXISTS
+ * 2D ONLY (decided 25 Sep 2026)
  *
- * The scan screen was specified around depth capture, face landmarks and live
- * exposure metering. None of the three are reachable from Expo Go on SDK 54:
+ * Scans are 2D guided photos. Depth capture was dropped: the analysis is a
+ * Claude vision call on an RGB photo, and tone, texture, pores and redness all
+ * live in the image — a depth map would not be read. The backend accepts only
+ * `mode: "2d"`, but keeps the field so 3D can return later without an API
+ * break. If it does, widen `CaptureMode` here and `wireMode()` in ./scans.ts.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT STILL NEEDS A DEVELOPMENT BUILD (Expo SDK 57, Expo Go)
  *
  *   • expo-face-detector was REMOVED from Expo (it blocked their ARM64
- *     simulator migration). Expo's own guidance is that face detection now
- *     requires a development build.
+ *     simulator migration). Face detection now requires a development build.
  *     https://github.com/expo/fyi/blob/main/face-detector-removed.md
  *   • react-native-vision-camera and @shopify/react-native-skia are not in
  *     Expo Go either — both need a development build.
- *   • Depth capture (TrueDepth / LIDAR / Android Depth API) has no React Native
- *     library at all. It is custom Swift and Kotlin.
  *
  * So the screen is built against this interface instead of against a library.
- * Everything the UI needs is declared here; today the answers are honest
- * "unsupported", and the screen falls back to 2D guided capture.
+ * Today the answers are honest "unsupported" and the signals are simulated,
+ * behind a visible badge.
  *
- * ─────────────────────────────────────────────────────────────────────────────
  * WHEN YOU MOVE TO A DEVELOPMENT BUILD
  *
  *   1. `faceDetection` → true, and replace the simulated signal in
  *      `hooks/useScanSignals.ts` with a vision-camera frame processor.
  *   2. `liveMetering`  → true, and read mean luminance off the same frame
  *      processor rather than the timed simulation.
- *   3. `depth`         → true only once a native module actually returns a
- *      depth map. `mode` then becomes '3d-depth' and the copy changes itself.
  *
- * No screen code changes for any of that.
+ * No screen code changes for either.
  */
 
 export type LightingQuality = 'dark' | 'ok' | 'bright';
-export type CaptureMode = '3d-depth' | '2d-guided';
+
+/** One value today. Kept as a type so a future mode is a one-line change. */
+export type CaptureMode = '2d-guided';
 
 export interface ScanCapability {
-  /** A native depth map is available (TrueDepth, LIDAR, Android Depth API). */
-  depth: boolean;
   /** On-device face landmark detection is available. */
   faceDetection: boolean;
   /** Per-frame exposure can be read without taking a picture. */
   liveMetering: boolean;
-  /** What the UI should offer, derived from the flags above. */
+  /** How the shot is guided. Always '2d-guided' for now. */
   mode: CaptureMode;
   /**
    * True while face detection or metering is being simulated for the UI.
@@ -54,17 +54,15 @@ export interface ScanCapability {
 }
 
 export async function getScanCapability(): Promise<ScanCapability> {
-  // Nothing to probe yet — every capability is gated on a development build.
+  // Nothing to probe yet — both capabilities are gated on a development build.
   // When the native module lands, probe it here and return real values.
-  const depth = false;
   const faceDetection = false;
   const liveMetering = false;
 
   return {
-    depth,
     faceDetection,
     liveMetering,
-    mode: depth ? '3d-depth' : '2d-guided',
+    mode: '2d-guided',
     simulated: !faceDetection || !liveMetering,
   };
 }
@@ -73,8 +71,6 @@ export async function getScanCapability(): Promise<ScanCapability> {
 export interface ScanCaptureResult {
   photoUri: string;
   mode: CaptureMode;
-  /** Populated only once a native depth module exists. */
-  depthMapUri?: string;
   capturedAt: string;
   /**
    * The image bytes, base64, without the data: prefix.

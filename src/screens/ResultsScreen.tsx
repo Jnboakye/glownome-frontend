@@ -161,7 +161,7 @@ export function ResultsScreen({ route, navigation }: Props) {
         <ScrollView contentContainerClassName="pb-huge" showsVerticalScrollIndicator={false}>
           {scan ? (
             <View className="px-gutter">
-              <ScanImage uri={scan.photoUri} capturedAt={scan.capturedAt} mode={scan.mode} />
+              <ScanImage uri={scan.photoUri} capturedAt={scan.capturedAt} />
             </View>
           ) : null}
 

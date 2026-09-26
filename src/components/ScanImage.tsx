@@ -6,11 +6,10 @@ import { shadow } from '../theme';
 type Props = {
   uri: string;
   capturedAt: string;
-  /** '2d-guided' | '3d-depth' — shown so the user knows what was captured. */
-  mode: string;
 };
 
-export function ScanImage({ uri, capturedAt, mode }: Props) {
+/** Scans are 2D only, so the capture label is fixed. */
+export function ScanImage({ uri, capturedAt }: Props) {
   const when = new Date(capturedAt);
   return (
     <View>
@@ -21,9 +20,7 @@ export function ScanImage({ uri, capturedAt, mode }: Props) {
         <Text className="font-ui text-caption text-ink-faint">
           {`${when.toLocaleDateString()} · ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
         </Text>
-        <Text className="font-ui text-caption text-ink-faint">
-          {mode === '3d-depth' ? '3D DEPTH' : '2D SCAN'}
-        </Text>
+        <Text className="font-ui text-caption text-ink-faint">2D SCAN</Text>
       </View>
     </View>
   );

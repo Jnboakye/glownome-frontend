@@ -29,11 +29,12 @@ export interface ScanRecord {
 }
 
 /**
- * The server stores `2d` / `3d`; the capture layer speaks in terms of how the
- * shot was guided. Mapping here keeps that vocabulary out of the wire format.
+ * The wire value for `mode`. Scans are 2D only, and the server accepts only
+ * `2d` (anything else is a 422). The field stays on the API so 3D can return
+ * without a break; the parameter stays so that change is local to here.
  */
-function wireMode(mode: CaptureMode): '2d' | '3d' {
-  return mode === '3d-depth' ? '3d' : '2d';
+function wireMode(_mode: CaptureMode): '2d' {
+  return '2d';
 }
 
 /**
