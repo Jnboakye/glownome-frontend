@@ -31,15 +31,19 @@ export function isLiveBackend(): boolean {
  * A failed request, carrying the status so callers can branch on it.
  *
  * The API returns `{ error, statusCode }` for every failure, so `message` is
- * the server's own wording where there is one.
+ * the server's own wording where there is one. Some errors also carry a
+ * `code` — a fixed value to branch on (e.g. `user_not_found`). Match on
+ * `code`, never on `message`: the wording may change, the code won't.
  */
 export class ApiError extends Error {
   readonly status: number;
+  readonly code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -66,13 +70,15 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = `Request failed (${response.status}) for ${path}`;
+    let code: string | undefined;
     try {
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as { error?: string; code?: string };
       if (body?.error) message = body.error;
+      if (typeof body?.code === 'string') code = body.code;
     } catch {
       // Not every failure has a JSON body — keep the generic message.
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, code);
   }
 
   // 204 No Content (PUT /profile) has no body to parse.

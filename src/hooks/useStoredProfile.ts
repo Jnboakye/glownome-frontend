@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SkinProfile } from '../data/onboardingQuestions';
-import { clearUserId, syncProfile } from '../api/identity';
-
-const KEY = 'glownome.profile.answers.v1';
+import { clearUserId, PROFILE_ANSWERS_KEY as KEY, syncProfile } from '../api/identity';
 
 /**
  * The four onboarding answers, kept on the device next to the name.

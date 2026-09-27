@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isLiveBackend, request } from './client';
-import { getUserId } from './identity';
+import { ensureUserId, isUnknownUser, renewUserId } from './identity';
 import { CaptureMode, ScanCaptureResult } from './scanCapture';
 import { SkinAnalysis } from './types';
 
@@ -93,15 +93,33 @@ export async function saveScan(capture: ScanCaptureResult): Promise<ScanRecord> 
   if (isLiveBackend()) {
     try {
       const dataUri = await toDataUri(capture.photoUri, capture.base64);
-      const created = await request<{ scanId: string; storedAt: string }>('/scans', {
-        method: 'POST',
-        body: JSON.stringify({
-          photoUri: dataUri,
-          mode: wireMode(capture.mode),
-          capturedAt: capture.capturedAt,
-          userId: await getUserId(),
-        }),
-      });
+      const upload = (userId: string | null) =>
+        request<{ scanId: string; storedAt: string }>('/scans', {
+          method: 'POST',
+          body: JSON.stringify({
+            photoUri: dataUri,
+            mode: wireMode(capture.mode),
+            capturedAt: capture.capturedAt,
+            userId,
+          }),
+        });
+
+      // Every scan belongs to a profile — made now if the wizard was skipped
+      // or couldn't reach the server. If that fails (offline), we land in the
+      // catch below and the scan is kept unsynced.
+      const userId = await ensureUserId();
+
+      let created: { scanId: string; storedAt: string };
+      try {
+        created = await upload(userId);
+      } catch (error) {
+        if (!userId || !isUnknownUser(error)) throw error;
+        // The server doesn't know this id (e.g. the database was reset). No
+        // photo was stored — the server checks first — so make a new profile
+        // and try exactly once more.
+        created = await upload(await renewUserId(userId));
+      }
+
       // The server's uuid becomes the scan's identity — POST /analyses looks
       // the scan up by it, and a locally-minted `scan-<timestamp>` id is not a
       // uuid, so it could never match a row.
