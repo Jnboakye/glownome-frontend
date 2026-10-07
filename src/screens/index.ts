@@ -10,3 +10,6 @@ export * from './ProductDetailScreen';
 export * from './ProgressScreen';
 export * from './ProfileScreen';
 export * from './ScanCaptureScreen';
+export * from './HomeScreen';
+export * from './RoutineScreen';
+export * from './AssistantScreen';

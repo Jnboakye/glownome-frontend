@@ -38,6 +38,19 @@ const colors = {
   amberSoft: '#F5EDD9',
   rose: '#C0566E',
   roseSoft: '#F8E4E9',
+
+  /**
+   * Home card tints (R1, option B). Cool only — lilac, blue, and a
+   * grey-leaning mint that is kept off the scan and progress cards so it is
+   * never read as the "healthy" score green. Each pair is the card fill and
+   * the deeper shade used for that card's shape.
+   */
+  cardLilac: '#EEEAFD',
+  cardLilacInk: '#7C5CFF',
+  cardBlue: '#E6EEFA',
+  cardBlueInk: '#5B7FB8',
+  cardMint: '#E6F0EC',
+  cardMintInk: '#5E8C7A',
 };
 
 const gradients = {

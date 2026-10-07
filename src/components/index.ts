@@ -19,3 +19,6 @@ export * from './ScoreCard';
 export * from './SkinProfileCard';
 export * from './ProductCarousel';
 export * from './NextSteps';
+export * from './BackBar';
+export * from './FloatingTabBar';
+export * from './HomeCard';

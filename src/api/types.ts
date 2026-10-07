@@ -53,6 +53,19 @@ export interface SkinAnalysis {
   findings: string[];
   metrics: SkinMetric[];
   recommendations: AnalysisRecommendation[];
+  /**
+   * PROPOSED (R1, 28 Sep) — not sent by the backend yet. Ingredients that suit
+   * this skin, each with a short reason. Home's Ingredients card renders only
+   * when this is present and non-empty; nothing is ever guessed from `summary`.
+   */
+  ingredients?: IngredientPick[];
+}
+
+export interface IngredientPick {
+  /** "Niacinamide" */
+  name: string;
+  /** Short, specific: "Evens oil and redness". */
+  why: string;
 }
 
 export interface Review {

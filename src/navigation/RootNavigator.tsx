@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer, DefaultTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -13,11 +13,14 @@ import { OnboardingProfileScreen } from '../screens/OnboardingProfileScreen';
 import { ScanCaptureScreen } from '../screens/ScanCaptureScreen';
 import { ResultsScreen } from '../screens/ResultsScreen';
 import { ProductDetailScreen } from '../screens/ProductDetailScreen';
+import { ScanScreen } from '../screens/ScanScreen';
+import { ProgressScreen } from '../screens/ProgressScreen';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { OnboardingContext } from '../hooks/onboardingContext';
 import { UserContext } from '../hooks/userContext';
 import { useStoredName } from '../hooks/useStoredName';
 import { useStoredProfile } from '../hooks/useStoredProfile';
+import { retryUnsyncedScans } from '../api/scans';
 import { fonts, palette } from '../theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -54,6 +57,13 @@ export function RootNavigator() {
     }),
     [storedName, storedProfile],
   );
+
+  // Fix 3: scans taken offline get uploaded on the next launch. Only after
+  // onboarding — no scans exist before it, and nothing should reach the
+  // server before the user has been through it.
+  useEffect(() => {
+    if (!onboarding.loading && onboarding.hasOnboarded) void retryUnsyncedScans();
+  }, [onboarding.loading, onboarding.hasOnboarded]);
 
   if (onboarding.loading || user.loading) {
     return (
@@ -111,6 +121,16 @@ export function RootNavigator() {
           <Stack.Screen
             name="ScanCapture"
             component={ScanCaptureScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ScanLibrary"
+            component={ScanScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Progress"
+            component={ProgressScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen

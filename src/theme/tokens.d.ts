@@ -17,6 +17,12 @@ declare const tokens: {
     amberSoft: string;
     rose: string;
     roseSoft: string;
+    cardLilac: string;
+    cardLilacInk: string;
+    cardBlue: string;
+    cardBlueInk: string;
+    cardMint: string;
+    cardMintInk: string;
   };
   gradients: {
     glow: readonly [string, string, ...string[]];

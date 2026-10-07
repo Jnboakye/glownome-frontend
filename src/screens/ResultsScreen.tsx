@@ -18,7 +18,7 @@ import {
   ProfileRow,
 } from '../components';
 import { RootStackParamList } from '../navigation/types';
-import { AnalysisUnavailableError, getProductsByIds, getScan, requestAnalysis } from '../api';
+import { analyseScan, AnalysisErrorKind, analysisErrorKind, getProductsByIds, getScan } from '../api';
 import { ScanRecord } from '../api/scans';
 import { SkinAnalysis } from '../api/types';
 import { useUser } from '../hooks/userContext';
@@ -27,7 +27,56 @@ import { palette, shadow } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Results'>;
 
-type Status = 'loading' | 'unavailable' | 'ready' | 'missing';
+type Status = 'loading' | 'error' | 'ready' | 'missing';
+
+/**
+ * One honest message per reason there is no analysis (fix 5). `retry` says
+ * whether trying again can help; when it can't, the action is a new scan.
+ */
+const ERROR_COPY: Record<AnalysisErrorKind, { icon: string; title: string; body: string; retry: boolean }> = {
+  'no-backend': {
+    icon: 'cloud-off-outline',
+    title: 'Analysis not connected',
+    body: 'Your photo is saved on this phone. This build has no analysis server configured.',
+    retry: false,
+  },
+  offline: {
+    icon: 'wifi-off',
+    title: "Can't reach the server",
+    body: 'Your photo is saved on this phone. Check your connection, then try again.',
+    retry: true,
+  },
+  'not-uploaded': {
+    icon: 'cloud-upload-outline',
+    title: 'Not uploaded yet',
+    body: 'Your photo is saved on this phone but could not be sent. Try again in a moment.',
+    retry: true,
+  },
+  'photo-missing': {
+    icon: 'image-off-outline',
+    title: 'Photo no longer on this phone',
+    body: 'This scan was never uploaded, and the phone has since cleared the photo. A new scan is needed.',
+    retry: false,
+  },
+  unavailable: {
+    icon: 'timer-sand',
+    title: 'Analysis not available right now',
+    body: 'Your photo was uploaded, but the analysis service did not answer. Try again in a moment.',
+    retry: true,
+  },
+  'not-found': {
+    icon: 'file-question-outline',
+    title: 'Scan not found on the server',
+    body: 'The server has no record of this scan. A new scan is needed.',
+    retry: false,
+  },
+  failed: {
+    icon: 'alert-circle-outline',
+    title: 'Analysis did not go through',
+    body: 'Your photo is saved on this phone. Try again in a moment.',
+    retry: true,
+  },
+};
 
 const DISCLAIMER =
   'This analysis is not a substitute for professional dermatology advice. See a dermatologist for anything painful, spreading or changing.';
@@ -40,26 +89,11 @@ export function ResultsScreen({ route, navigation }: Props) {
   const [analysis, setAnalysis] = useState<SkinAnalysis | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [status, setStatus] = useState<Status>('loading');
+  const [errorKind, setErrorKind] = useState<AnalysisErrorKind>('failed');
 
-  const load = useCallback(async () => {
-    setStatus('loading');
-    const record = await getScan(scanId);
-    if (!record) {
-      setStatus('missing');
-      return;
-    }
-    setScan(record);
-
-    // Already analysed on a previous visit.
-    if (record.analysis) {
-      setAnalysis(record.analysis);
-      setStatus('ready');
-      return;
-    }
-
+  /** Product ids → cards. A catalogue failure never hides the analysis. */
+  const loadRecommendations = useCallback(async (result: SkinAnalysis) => {
     try {
-      const result = await requestAnalysis(record);
-      setAnalysis(result);
       const products = await getProductsByIds(result.recommendations.map((r) => r.productId));
       setRecommendations(
         result.recommendations
@@ -69,12 +103,41 @@ export function ResultsScreen({ route, navigation }: Props) {
           })
           .filter((r): r is Recommendation => r !== null),
       );
-      setStatus('ready');
-    } catch (error) {
-      // No backend yet, or the request failed. Either way, invent nothing.
-      setStatus(error instanceof AnalysisUnavailableError ? 'unavailable' : 'unavailable');
+    } catch {
+      setRecommendations([]);
     }
-  }, [scanId]);
+  }, []);
+
+  // `scanId` is the id the screen was opened with. If the scan was taken
+  // offline, `analyseScan` uploads it and it gets the server's id — `scan`
+  // (state) holds the current record from then on, so the retry button
+  // uses that, not the route param.
+  const load = useCallback(
+    async (from?: ScanRecord) => {
+      setStatus('loading');
+      const record = from ?? (await getScan(scanId));
+      if (!record) {
+        setStatus('missing');
+        return;
+      }
+      setScan(record);
+
+      try {
+        // Saved analysis → no network call. Otherwise upload if needed,
+        // analyse once, and save it on the scan (fix 2).
+        const { scan: current, analysis: result } = await analyseScan(record);
+        setScan(current);
+        setAnalysis(result);
+        setStatus('ready');
+        void loadRecommendations(result);
+      } catch (error) {
+        // Invent nothing — say which thing went wrong.
+        setErrorKind(analysisErrorKind(error));
+        setStatus('error');
+      }
+    },
+    [loadRecommendations, scanId],
+  );
 
   useEffect(() => {
     void load();
@@ -165,13 +228,22 @@ export function ResultsScreen({ route, navigation }: Props) {
             </View>
           ) : null}
 
-          {status === 'unavailable' || !analysis ? (
+          {status === 'error' || !analysis ? (
             <>
               <EmptyState
-                icon="cloud-off-outline"
-                title="Analysis unavailable"
-                body="Your photo is saved on this device. Skin analysis turns on once the Claude endpoint is connected."
-                action={<PrimaryButton label="Try again" onPress={() => void load()} />}
+                icon={ERROR_COPY[errorKind].icon}
+                title={ERROR_COPY[errorKind].title}
+                body={ERROR_COPY[errorKind].body}
+                action={
+                  ERROR_COPY[errorKind].retry ? (
+                    <PrimaryButton label="Try again" onPress={() => void load(scan ?? undefined)} />
+                  ) : errorKind === 'no-backend' ? undefined : (
+                    <PrimaryButton
+                      label="Take a new scan"
+                      onPress={() => navigation.replace('ScanCapture')}
+                    />
+                  )
+                }
               />
 
               {profileRows.length > 0 ? (
@@ -249,8 +321,8 @@ export function ResultsScreen({ route, navigation }: Props) {
 
           <View className="px-gutter mt-3xl">
             <NextSteps
-              onStartRoutine={() => navigation.navigate('Main', { screen: 'Scan' })}
-              onTrackProgress={() => navigation.navigate('Main', { screen: 'Progress' })}
+              onStartRoutine={() => navigation.navigate('Main', { screen: 'Routine' })}
+              onTrackProgress={() => navigation.navigate('Progress')}
             />
           </View>
 

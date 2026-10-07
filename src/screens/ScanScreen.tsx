@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { GlowBackground, PrimaryButton, ScreenHeader } from '../components';
+import { BackBar, GlowBackground, PrimaryButton, ScreenHeader } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { saveScan } from '../api';
 import { firstNameOf, useUser } from '../hooks/userContext';
@@ -73,11 +73,12 @@ export function ScanScreen() {
   return (
     <GlowBackground>
       <SafeAreaView className="flex-1" edges={['top']}>
+        <BackBar />
         <ScrollView contentContainerClassName="pb-huge" showsVerticalScrollIndicator={false}>
           <ScreenHeader
             eyebrow={firstNameOf(name) ? `Hello, ${firstNameOf(name)}` : 'Step one'}
             title="Scan your skin"
-            subtitle="One clear photo is all it takes. It stays on your phone."
+            subtitle="One clear photo is all it takes. It is sent privately for analysis, and a copy stays on this phone."
           />
 
           <View className="px-gutter">

@@ -4,7 +4,7 @@ import { Card, Divider, List, Switch, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { GlowBackground, PrimaryButton, ScreenHeader, SectionTitle } from '../components';
+import { GlowBackground, PrimaryButton, ScreenHeader, SectionTitle, useTabBarSpace } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { useOnboardingContext } from '../hooks/onboardingContext';
 import { clearScans, listScans } from '../api';
@@ -27,6 +27,8 @@ export function ProfileScreen() {
   const [routineNudges, setRoutineNudges] = useState(true);
   const [storePhotos, setStorePhotos] = useState(false);
   const [scanCount, setScanCount] = useState(0);
+  // Clears the floating tab bar (R1). The rest of this screen waits for R5.
+  const bottomSpace = useTabBarSpace();
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +65,10 @@ export function ProfileScreen() {
   return (
     <GlowBackground variant="mist">
       <SafeAreaView className="flex-1" edges={['top']}>
-        <ScrollView contentContainerClassName="pb-huge" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: bottomSpace }}
+          showsVerticalScrollIndicator={false}
+        >
           <ScreenHeader title="Profile" />
 
           <View className="px-gutter mb-2xl">

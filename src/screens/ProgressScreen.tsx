@@ -4,7 +4,7 @@ import { Card, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { EmptyState, GlowBackground, PrimaryButton, ScreenHeader, SectionTitle } from '../components';
+import { BackBar, EmptyState, GlowBackground, PrimaryButton, ScreenHeader, SectionTitle } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { listScans } from '../api';
 import { ScanRecord } from '../api/scans';
@@ -39,6 +39,7 @@ export function ProgressScreen() {
   return (
     <GlowBackground variant="mist">
       <SafeAreaView className="flex-1" edges={['top']}>
+        <BackBar />
         <ScrollView contentContainerClassName="pb-huge" showsVerticalScrollIndicator={false}>
           <ScreenHeader
             title="Your progress"

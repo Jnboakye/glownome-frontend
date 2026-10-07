@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isLiveBackend, request } from './client';
+import { ApiError, isLiveBackend, request } from './client';
 import { ensureUserId, isUnknownUser, renewUserId } from './identity';
 import { CaptureMode, ScanCaptureResult } from './scanCapture';
 import { SkinAnalysis } from './types';
@@ -22,8 +22,9 @@ export interface ScanRecord {
   /**
    * True once the server has a row for this scan, and `id` is therefore the
    * server's uuid. False for a scan taken while the backend was unreachable:
-   * it is kept on the device, but it can never be analysed, because
-   * POST /analyses looks the id up in Postgres.
+   * it is kept on the device and uploaded later by `syncScan()` (on app start,
+   * and before an analysis), because POST /analyses looks the id up in
+   * Postgres and a local `scan-<timestamp>` id can never match a row.
    */
   synced?: boolean;
 }
@@ -48,6 +49,7 @@ async function toDataUri(photoUri: string, base64?: string): Promise<string> {
 
   const response = await fetch(photoUri);
   const blob = await response.blob();
+  if (blob.size === 0) throw new Error('The photo file is empty or missing');
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Could not read the captured photo'));
@@ -71,8 +73,28 @@ async function writeAll(scans: ScanRecord[]): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY, JSON.stringify(scans));
   } catch {
-    // Non-fatal: the scan simply won't survive a restart.
+    // Non-fatal: the change simply won't survive a restart.
   }
+}
+
+/** The tail of the write queue. */
+let writing: Promise<unknown> = Promise.resolve();
+
+/**
+ * Read, change, write — one at a time.
+ *
+ * A background retry, a new capture and a finished analysis can all touch the
+ * list at once. Each read-modify-write waits for the previous one, so no
+ * change overwrites another. Never await a network call inside `change`.
+ */
+function mutate<T>(change: (scans: ScanRecord[]) => { scans: ScanRecord[]; result: T }): Promise<T> {
+  const run = writing.then(async () => {
+    const { scans, result } = change(await readAll());
+    await writeAll(scans);
+    return result;
+  });
+  writing = run.catch(() => undefined);
+  return run;
 }
 
 /** Newest first. */
@@ -86,48 +108,46 @@ export async function getScan(id: string): Promise<ScanRecord | null> {
   return scans.find((s) => s.id === id) ?? null;
 }
 
+/**
+ * Put one photo on the server and return the server's scan id.
+ *
+ * Every scan belongs to a profile — made now if the wizard was skipped or
+ * couldn't reach the server. If the server no longer knows the stored id
+ * (e.g. the database was reset), no photo was stored — the server checks
+ * first — so a new profile is made and the upload is tried exactly once more.
+ *
+ * Throws on anything else, including "server unreachable".
+ */
+async function upload(dataUri: string, mode: CaptureMode, capturedAt: string): Promise<string> {
+  const post = (userId: string | null) =>
+    request<{ scanId: string; storedAt: string }>('/scans', {
+      method: 'POST',
+      body: JSON.stringify({ photoUri: dataUri, mode: wireMode(mode), capturedAt, userId }),
+    });
+
+  const userId = await ensureUserId();
+  try {
+    return (await post(userId)).scanId;
+  } catch (error) {
+    if (!userId || !isUnknownUser(error)) throw error;
+    return (await post(await renewUserId(userId))).scanId;
+  }
+}
+
 export async function saveScan(capture: ScanCaptureResult): Promise<ScanRecord> {
   let id = `scan-${Date.now()}`;
   let synced = false;
 
   if (isLiveBackend()) {
     try {
-      const dataUri = await toDataUri(capture.photoUri, capture.base64);
-      const upload = (userId: string | null) =>
-        request<{ scanId: string; storedAt: string }>('/scans', {
-          method: 'POST',
-          body: JSON.stringify({
-            photoUri: dataUri,
-            mode: wireMode(capture.mode),
-            capturedAt: capture.capturedAt,
-            userId,
-          }),
-        });
-
-      // Every scan belongs to a profile — made now if the wizard was skipped
-      // or couldn't reach the server. If that fails (offline), we land in the
-      // catch below and the scan is kept unsynced.
-      const userId = await ensureUserId();
-
-      let created: { scanId: string; storedAt: string };
-      try {
-        created = await upload(userId);
-      } catch (error) {
-        if (!userId || !isUnknownUser(error)) throw error;
-        // The server doesn't know this id (e.g. the database was reset). No
-        // photo was stored — the server checks first — so make a new profile
-        // and try exactly once more.
-        created = await upload(await renewUserId(userId));
-      }
-
       // The server's uuid becomes the scan's identity — POST /analyses looks
-      // the scan up by it, and a locally-minted `scan-<timestamp>` id is not a
-      // uuid, so it could never match a row.
-      id = created.scanId;
+      // the scan up by it.
+      const dataUri = await toDataUri(capture.photoUri, capture.base64);
+      id = await upload(dataUri, capture.mode, capture.capturedAt);
       synced = true;
     } catch {
-      // Backend down or unreachable. Keep the photo rather than losing it; the
-      // Results screen will say the analysis is unavailable, which is true.
+      // Backend down or unreachable. Keep the photo rather than losing it;
+      // `syncScan()` uploads it later.
     }
   }
 
@@ -141,21 +161,100 @@ export async function saveScan(capture: ScanCaptureResult): Promise<ScanRecord> 
     analysis: null,
     synced,
   };
-  const scans = await readAll();
-  await writeAll([...scans, record]);
+  await mutate((scans) => ({ scans: [...scans, record], result: undefined }));
   return record;
 }
 
-/** Called once the analysis endpoint answers for a scan. */
+/** Uploads in flight, by local id — so a retry on app start and a retry from
+ *  the Results screen can't send the same photo twice. */
+const syncing = new Map<string, Promise<ScanRecord>>();
+
+/**
+ * Upload a scan that was taken offline, and give it the server's id.
+ *
+ * Returns the updated record (now `synced: true`, new `id`). Returns the
+ * record unchanged if it was already synced. Throws if the upload fails — the
+ * scan stays on the device as `synced: false` for the next attempt.
+ *
+ * The photo is read back from `photoUri`. Camera captures live in the OS
+ * cache until R5 moves them to permanent storage; if iOS has cleared it,
+ * the read fails and this throws `PhotoMissingError`.
+ */
+export function syncScan(record: ScanRecord): Promise<ScanRecord> {
+  if (record.synced !== false) return Promise.resolve(record);
+  const inFlight = syncing.get(record.id);
+  if (inFlight) return inFlight;
+
+  const run = (async () => {
+    if (!isLiveBackend()) throw new Error('No backend configured.');
+    let dataUri: string;
+    try {
+      dataUri = await toDataUri(record.photoUri);
+    } catch {
+      throw new PhotoMissingError();
+    }
+
+    const serverId = await upload(dataUri, record.mode, record.capturedAt);
+    return mutate((scans) => {
+      let updated: ScanRecord = { ...record, id: serverId, synced: true };
+      const next = scans.map((s) => {
+        if (s.id !== record.id) return s;
+        // Keep anything that changed on the stored copy meanwhile.
+        updated = { ...s, id: serverId, synced: true };
+        return updated;
+      });
+      return { scans: next, result: updated };
+    });
+  })();
+
+  syncing.set(record.id, run);
+  const clear = () => syncing.delete(record.id);
+  run.then(clear, clear);
+  return run;
+}
+
+/** The photo file behind an unsynced scan is gone, so it can never upload. */
+export class PhotoMissingError extends Error {
+  constructor() {
+    super('The photo for this scan is no longer on this phone.');
+    this.name = 'PhotoMissingError';
+  }
+}
+
+/**
+ * Upload every scan that was taken offline. Called on app start.
+ *
+ * One at a time, oldest first. Stops at the first "server unreachable", so an
+ * offline phone doesn't try every scan; any other failure (a missing photo, a
+ * rejected upload) skips that scan only. Never throws.
+ */
+export async function retryUnsyncedScans(): Promise<void> {
+  if (!isLiveBackend()) return;
+  const pending = (await readAll())
+    .filter((s) => s.synced === false)
+    .sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+
+  for (const scan of pending) {
+    try {
+      await syncScan(scan);
+    } catch (error) {
+      // Status 0 = no response at all. Try again next launch.
+      if (error instanceof ApiError && error.status === 0) return;
+    }
+  }
+}
+
+/**
+ * Keep an analysis on its scan, so it is fetched from Claude exactly once.
+ * Results, Home and Progress all read it from here afterwards.
+ */
 export async function attachAnalysis(id: string, analysis: SkinAnalysis): Promise<void> {
-  const scans = await readAll();
-  await writeAll(scans.map((s) => (s.id === id ? { ...s, analysis } : s)));
+  await mutate((scans) => ({
+    scans: scans.map((s) => (s.id === id ? { ...s, analysis } : s)),
+    result: undefined,
+  }));
 }
 
 export async function clearScans(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(KEY);
-  } catch {
-    // Non-fatal.
-  }
+  await mutate(() => ({ scans: [], result: undefined }));
 }
