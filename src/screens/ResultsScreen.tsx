@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
-import { Card, IconButton, Text } from 'react-native-paper';
+import { ScrollView, View } from 'react-native';
+import { Card, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
+  BackBar,
   EmptyState,
   GlowBackground,
+  LoadingState,
   MetricBar,
   NextSteps,
   PrimaryButton,
@@ -23,7 +25,7 @@ import { ScanRecord } from '../api/scans';
 import { SkinAnalysis } from '../api/types';
 import { useUser } from '../hooks/userContext';
 import { labelFor } from '../data/onboardingQuestions';
-import { palette, shadow } from '../theme';
+import { shadow } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Results'>;
 
@@ -167,27 +169,15 @@ export function ResultsScreen({ route, navigation }: Props) {
       : null,
   ].filter((row): row is ProfileRow => row !== null);
 
-  const header = (
-    <View className="flex-row items-center px-md pt-sm">
-      <IconButton
-        icon="chevron-left"
-        size={26}
-        iconColor={palette.ink}
-        onPress={() => navigation.goBack()}
-        accessibilityLabel="Back"
-      />
-      <Text className="font-title text-heading text-ink">Results</Text>
-    </View>
-  );
-
   if (status === 'loading') {
     return (
       <GlowBackground variant="mist">
         <SafeAreaView className="flex-1" edges={['top']}>
-          {header}
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color={palette.ink} />
-          </View>
+          <BackBar title="Results" />
+          <LoadingState
+            title="Reading your skin…"
+            body="This usually takes a few seconds. Your photo stays on this phone."
+          />
         </SafeAreaView>
       </GlowBackground>
     );
@@ -197,7 +187,7 @@ export function ResultsScreen({ route, navigation }: Props) {
     return (
       <GlowBackground variant="mist">
         <SafeAreaView className="flex-1" edges={['top']}>
-          {header}
+          <BackBar title="Results" />
           <View className="flex-1 justify-center">
             <EmptyState
               icon="image-off-outline"
@@ -216,10 +206,12 @@ export function ResultsScreen({ route, navigation }: Props) {
     );
   }
 
+  const analysisReady = status === 'ready' && analysis !== null;
+
   return (
     <GlowBackground variant="mist">
       <SafeAreaView className="flex-1" edges={['top']}>
-        {header}
+        <BackBar title="Results" />
 
         <ScrollView contentContainerClassName="pb-huge" showsVerticalScrollIndicator={false}>
           {scan ? (
@@ -228,7 +220,7 @@ export function ResultsScreen({ route, navigation }: Props) {
             </View>
           ) : null}
 
-          {status === 'error' || !analysis ? (
+          {!analysisReady ? (
             <>
               <EmptyState
                 icon={ERROR_COPY[errorKind].icon}
@@ -252,6 +244,14 @@ export function ResultsScreen({ route, navigation }: Props) {
                   <SkinProfileCard rows={profileRows} />
                 </View>
               ) : null}
+
+              <View className="px-gutter mt-2xl">
+                <PrimaryButton
+                  label="Track progress"
+                  variant="outline"
+                  onPress={() => navigation.navigate('Progress')}
+                />
+              </View>
             </>
           ) : (
             <>
@@ -316,15 +316,15 @@ export function ResultsScreen({ route, navigation }: Props) {
                   </View>
                 )}
               </View>
+
+              <View className="px-gutter mt-3xl">
+                <NextSteps
+                  onStartRoutine={() => navigation.navigate('Main', { screen: 'Routine' })}
+                  onTrackProgress={() => navigation.navigate('Progress')}
+                />
+              </View>
             </>
           )}
-
-          <View className="px-gutter mt-3xl">
-            <NextSteps
-              onStartRoutine={() => navigation.navigate('Main', { screen: 'Routine' })}
-              onTrackProgress={() => navigation.navigate('Progress')}
-            />
-          </View>
 
           <View className="px-gutter mt-xl">
             <Text className="font-body text-body-sm text-ink-faint text-center">{DISCLAIMER}</Text>

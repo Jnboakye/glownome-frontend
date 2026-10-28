@@ -14,6 +14,7 @@ export * from './PromiseRow';
 export * from './ChoicePill';
 export * from './FaceMesh';
 export * from './EmptyState';
+export * from './LoadingState';
 export * from './ScanImage';
 export * from './ScoreCard';
 export * from './SkinProfileCard';

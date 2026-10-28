@@ -14,10 +14,15 @@ export function AssistantScreen() {
           contentContainerClassName="flex-grow"
           contentContainerStyle={{ paddingBottom: bottomSpace }}
         >
-          <Text className="font-display text-title text-ink px-gutter mt-lg">assistant</Text>
+          <Text
+            accessibilityRole="header"
+            className="font-display text-title text-ink px-gutter mt-lg"
+          >
+            assistant
+          </Text>
           <EmptyState
             icon="chat-processing-outline"
-            title="ask about your skin"
+            title="Ask about your skin"
             body="A chat that knows your scans and your routine is being built. It won't replace a dermatologist."
           />
         </ScrollView>

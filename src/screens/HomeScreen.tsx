@@ -13,6 +13,7 @@ import {
   DropsShape,
   GlowBackground,
   HomeCard,
+  LoadingState,
   ScanShape,
   useTabBarSpace,
 } from '../components';
@@ -106,7 +107,9 @@ export function HomeScreen() {
             ))}
           </View>
 
-          {scans === null ? null : (
+          {scans === null ? (
+            <LoadingState fill={false} title="Loading your home…" />
+          ) : (
             <>
               {/* ── skin scan ── */}
               {last ? (

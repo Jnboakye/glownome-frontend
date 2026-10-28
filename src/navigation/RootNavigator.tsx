@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { Text } from 'react-native-paper';
 import { NavigationContainer, DefaultTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
@@ -67,8 +68,11 @@ export function RootNavigator() {
 
   if (onboarding.loading || user.loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-canvas">
+      <View className="flex-1 items-center justify-center bg-canvas px-gutter">
         <ActivityIndicator color={palette.ink} />
+        <Text className="font-ui text-subheading text-ink mt-lg text-center">
+          Opening Glownome…
+        </Text>
       </View>
     );
   }
@@ -141,7 +145,7 @@ export function RootNavigator() {
           <Stack.Screen
             name="ProductDetail"
             component={ProductDetailScreen}
-            options={{ title: '' }}
+            options={{ headerShown: false }}
           />
         </Stack.Navigator>
       </NavigationContainer>

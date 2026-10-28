@@ -5,11 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { BackBar, GlowBackground, PrimaryButton, ScreenHeader } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { saveScan } from '../api';
 import { firstNameOf, useUser } from '../hooks/userContext';
-import { shadow } from '../theme';
+import { palette, shadow } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -25,10 +26,14 @@ export function ScanScreen() {
   const [photoUri, setPhotoUri] = useState<string | undefined>();
   const [photoBase64, setPhotoBase64] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | undefined>();
+
+  const busy = saving || picking;
 
   const pickFromLibrary = useCallback(async () => {
     setError(undefined);
+    setPicking(true);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -49,12 +54,15 @@ export function ScanScreen() {
       }
     } catch {
       setError('Something went wrong opening your library. Please try again.');
+    } finally {
+      setPicking(false);
     }
   }, []);
 
   const useThisPhoto = useCallback(async () => {
-    if (!photoUri) return;
+    if (!photoUri || busy) return;
     setSaving(true);
+    setError(undefined);
     try {
       const scan = await saveScan({
         photoUri,
@@ -68,7 +76,14 @@ export function ScanScreen() {
     } finally {
       setSaving(false);
     }
-  }, [navigation, photoBase64, photoUri]);
+  }, [busy, navigation, photoBase64, photoUri]);
+
+  const clearPhoto = useCallback(() => {
+    if (busy) return;
+    setPhotoUri(undefined);
+    setPhotoBase64(undefined);
+    setError(undefined);
+  }, [busy]);
 
   return (
     <GlowBackground>
@@ -87,6 +102,13 @@ export function ScanScreen() {
                 <Image source={{ uri: photoUri }} className="w-full h-full" resizeMode="cover" />
               ) : (
                 <View className="flex-1 items-center justify-center p-2xl">
+                  <View className="w-[52px] h-[52px] rounded-pill bg-accent-soft items-center justify-center mb-md">
+                    <MaterialCommunityIcons
+                      name="camera-outline"
+                      size={24}
+                      color={palette.accent}
+                    />
+                  </View>
                   <Text className="font-title text-heading text-ink-soft">No photo yet</Text>
                   <Text className="font-body text-body-sm text-ink-faint mt-xs text-center">
                     Open the camera, or pick one from your library
@@ -109,7 +131,12 @@ export function ScanScreen() {
           </Card>
 
           {error ? (
-            <Text className="font-body text-body-sm text-rose mx-gutter mt-lg">{error}</Text>
+            <Text
+              accessibilityLiveRegion="polite"
+              className="font-body text-body-sm text-rose mx-gutter mt-lg"
+            >
+              {error}
+            </Text>
           ) : null}
 
           <View className="px-gutter mt-2xl">
@@ -117,21 +144,34 @@ export function ScanScreen() {
               label="Open the camera"
               icon="camera-iris"
               onPress={() => navigation.navigate('ScanCapture')}
+              disabled={busy}
               className="mb-md"
             />
             <PrimaryButton
-              label="Choose from library"
+              label={picking ? 'Opening library…' : 'Choose from library'}
               icon="image-outline"
               variant="outline"
               onPress={() => void pickFromLibrary()}
+              disabled={busy}
+              loading={picking}
               className="mb-md"
             />
             {photoUri ? (
-              <PrimaryButton
-                label={saving ? 'Saving…' : 'Use this photo'}
-                onPress={() => void useThisPhoto()}
-                loading={saving}
-              />
+              <>
+                <PrimaryButton
+                  label={saving ? 'Saving…' : 'Use this photo'}
+                  onPress={() => void useThisPhoto()}
+                  loading={saving}
+                  disabled={busy}
+                  className="mb-md"
+                />
+                <PrimaryButton
+                  label="Choose a different photo"
+                  variant="outline"
+                  onPress={clearPhoto}
+                  disabled={busy}
+                />
+              </>
             ) : null}
           </View>
         </ScrollView>

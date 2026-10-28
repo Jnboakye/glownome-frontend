@@ -71,13 +71,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             <Pressable
               key={route.key}
               onPress={onPress}
+              hitSlop={4}
               accessibilityRole="tab"
               accessibilityState={{ selected: focused }}
               accessibilityLabel={tab.label}
               className="flex-1 items-center justify-center rounded-pill"
               style={{
                 height: BAR_HEIGHT - 12,
-                backgroundColor: focused ? 'rgba(255,255,255,0.12)' : 'transparent',
+                // Lilac wash on the active tab — brand accent without leaving the dark pill.
+                backgroundColor: focused ? 'rgba(124,92,255,0.28)' : 'transparent',
               }}
             >
               <MaterialCommunityIcons name={tab.icon as never} size={22} color={colour} />
