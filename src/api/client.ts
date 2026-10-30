@@ -48,20 +48,59 @@ export function delay<T>(value: T, ms = 900): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
+/**
+ * Get the Supabase access token for authenticated requests.
+ *
+ * Imported dynamically to avoid circular dependencies with the auth system.
+ * Returns null when not signed in.
+ */
+async function getAccessToken(): Promise<string | null> {
+  try {
+    const { supabase } = await import('../lib/supabase');
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!isLiveBackend()) {
     throw new ApiError('No EXPO_PUBLIC_API_URL configured.', 0);
+  }
+
+  // Attach Supabase access token for authenticated endpoints
+  const token = await getAccessToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(init?.headers ?? {}),
+  };
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers,
     });
   } catch {
     // Wrong LAN IP, Mac asleep, container down — all land here.
     throw new ApiError(`Could not reach the server at ${API_BASE_URL}.`, 0);
+  }
+
+  // 401 means the token is invalid or expired — sign the user out
+  if (response.status === 401) {
+    try {
+      const { supabase } = await import('../lib/supabase');
+      await supabase.auth.signOut();
+    } catch {
+      // Non-fatal: the auth state will be cleared anyway.
+    }
+    throw new ApiError('Your session has expired. Please sign in again.', 401);
   }
 
   if (!response.ok) {

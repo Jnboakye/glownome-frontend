@@ -7,6 +7,7 @@ export type MainTabParamList = {
 };
 
 export type RootStackParamList = {
+  SignIn: undefined;
   Onboarding: undefined;
   OnboardingScan: undefined;
   OnboardingRoutine: undefined;
