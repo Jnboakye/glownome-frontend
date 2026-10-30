@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { NavigationContainer, DefaultTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { RootStackParamList } from './types';
 import { MainTabs } from './MainTabs';
 import { SignInScreen } from '../screens/SignInScreen';
@@ -21,6 +22,7 @@ import { AuthContext } from '../hooks/authContext';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { useStoredName } from '../hooks/useStoredName';
 import { useStoredProfile } from '../hooks/useStoredProfile';
+import { isSupabaseConfigured, getSupabaseConfigError } from '../lib/supabase';
 import { fonts, palette } from '../theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -38,6 +40,52 @@ const navTheme: Theme = {
 };
 
 export function RootNavigator() {
+  // Check Supabase configuration first, before any hooks that might use it
+  if (!isSupabaseConfigured()) {
+    const errorMessage = getSupabaseConfigError();
+    return (
+      <SafeAreaView className="flex-1 bg-canvas">
+        <ScrollView
+          contentContainerClassName="flex-1 px-gutter justify-center"
+          showsVerticalScrollIndicator={false}
+        >
+          <View className="items-center">
+            <Text className="font-title text-[48px] text-accent mb-sm" style={{ fontFamily: fonts.title }}>
+              ⚠️
+            </Text>
+            <Text className="font-title text-[24px] text-ink text-center mb-md">
+              Configuration Required
+            </Text>
+            <Text className="font-body text-body text-ink-faint text-center mb-lg">
+              {errorMessage}
+            </Text>
+            <View className="bg-surface rounded-lg p-lg border border-outline">
+              <Text className="font-ui text-caption text-ink-faint mb-xs">SETUP STEPS:</Text>
+              <Text className="font-body text-body-sm text-ink mb-sm">
+                1. Create a .env file in the project root
+              </Text>
+              <Text className="font-body text-body-sm text-ink mb-sm">
+                2. Add your Supabase credentials:
+              </Text>
+              <View className="bg-canvas rounded px-sm py-xs mb-sm">
+                <Text className="font-mono text-[11px] text-ink" style={{ fontFamily: 'Courier' }}>
+                  EXPO_PUBLIC_SUPABASE_URL=...{'\n'}
+                  EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+                </Text>
+              </View>
+              <Text className="font-body text-body-sm text-ink mb-sm">
+                3. Restart Metro: npx expo start -c
+              </Text>
+              <Text className="font-body text-body-sm text-ink-faint mt-md">
+                See .env.example for the full template.
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   const auth = useAuthSession();
   const onboarding = useOnboarding();
   const storedName = useStoredName();
@@ -68,6 +116,8 @@ export function RootNavigator() {
   }
 
   // Auth gate: show sign-in when not authenticated
+  // session is undefined when no session exists (signed out)
+  // session is Session object when authenticated
   const isAuthenticated = auth.session !== undefined;
 
   return (

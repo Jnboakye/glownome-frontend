@@ -43,6 +43,11 @@ export function SignInScreen() {
       return;
     }
 
+    if (supabase === null) {
+      Alert.alert('Configuration Error', 'Supabase is not configured. Check your .env file.');
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = isSignUp
@@ -66,6 +71,11 @@ export function SignInScreen() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (supabase === null) {
+      Alert.alert('Configuration Error', 'Supabase is not configured. Check your .env file.');
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({

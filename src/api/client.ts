@@ -52,11 +52,12 @@ export function delay<T>(value: T, ms = 900): Promise<T> {
  * Get the Supabase access token for authenticated requests.
  *
  * Imported dynamically to avoid circular dependencies with the auth system.
- * Returns null when not signed in.
+ * Returns null when not signed in or Supabase is not configured.
  */
 async function getAccessToken(): Promise<string | null> {
   try {
     const { supabase } = await import('../lib/supabase');
+    if (!supabase) return null;
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -96,7 +97,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 401) {
     try {
       const { supabase } = await import('../lib/supabase');
-      await supabase.auth.signOut();
+      if (supabase !== null) {
+        await supabase.auth.signOut();
+      }
     } catch {
       // Non-fatal: the auth state will be cleared anyway.
     }

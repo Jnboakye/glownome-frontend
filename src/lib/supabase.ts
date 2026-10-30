@@ -9,7 +9,7 @@
  */
 
 import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
 declare const process: { env: Record<string, string | undefined> };
@@ -17,10 +17,28 @@ declare const process: { env: Record<string, string | undefined> };
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to .env',
-  );
+/**
+ * Check if Supabase is properly configured.
+ * Used by the app to show a helpful error screen instead of crashing.
+ */
+export function isSupabaseConfigured(): boolean {
+  return !!(supabaseUrl && supabaseAnonKey);
+}
+
+/**
+ * Get a human-readable error message for missing configuration.
+ */
+export function getSupabaseConfigError(): string | null {
+  if (!supabaseUrl && !supabaseAnonKey) {
+    return 'Missing EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in .env';
+  }
+  if (!supabaseUrl) {
+    return 'Missing EXPO_PUBLIC_SUPABASE_URL in .env';
+  }
+  if (!supabaseAnonKey) {
+    return 'Missing EXPO_PUBLIC_SUPABASE_ANON_KEY in .env';
+  }
+  return null;
 }
 
 /**
@@ -54,11 +72,17 @@ const SecureStoreAdapter = {
   },
 };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: SecureStoreAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false, // Not needed in React Native
-  },
-});
+/**
+ * Supabase client instance.
+ * Only created if env vars are present; null otherwise.
+ */
+export const supabase: SupabaseClient | null = isSupabaseConfigured()
+  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        storage: SecureStoreAdapter,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false, // Not needed in React Native
+      },
+    })
+  : null;
