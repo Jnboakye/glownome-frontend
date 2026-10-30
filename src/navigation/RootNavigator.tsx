@@ -40,8 +40,16 @@ const navTheme: Theme = {
 };
 
 export function RootNavigator() {
-  // Check Supabase configuration first, before any hooks that might use it
-  if (!isSupabaseConfigured()) {
+  // Always call hooks first - Rules of Hooks require consistent call order
+  const auth = useAuthSession();
+  const onboarding = useOnboarding();
+  const storedName = useStoredName();
+  const storedProfile = useStoredProfile();
+
+  // Check Supabase configuration AFTER hooks
+  const supabaseConfigured = isSupabaseConfigured();
+  
+  if (!supabaseConfigured) {
     const errorMessage = getSupabaseConfigError();
     return (
       <SafeAreaView className="flex-1 bg-canvas">
@@ -86,11 +94,6 @@ export function RootNavigator() {
     );
   }
 
-  const auth = useAuthSession();
-  const onboarding = useOnboarding();
-  const storedName = useStoredName();
-  const storedProfile = useStoredProfile();
-
   // One context for the whole user record — name and answers travel together.
   const user = useMemo(
     () => ({
@@ -107,28 +110,80 @@ export function RootNavigator() {
     [storedName, storedProfile],
   );
 
+  // Debug: Log loading states
+  console.log('[RootNavigator] Loading states:', {
+    authLoading: auth.loading,
+    onboardingLoading: onboarding.loading,
+    userLoading: user.loading,
+  });
+
   if (auth.loading || onboarding.loading || user.loading) {
+    console.log('[RootNavigator] Still loading, showing spinner');
     return (
       <View className="flex-1 items-center justify-center bg-canvas">
         <ActivityIndicator color={palette.ink} />
+        {__DEV__ && (
+          <Text style={{ marginTop: 10, fontSize: 11, color: palette.inkFaint }}>
+            Loading auth state...
+          </Text>
+        )}
       </View>
     );
   }
 
   // Auth gate: show sign-in when not authenticated
+  // session is null while loading
   // session is undefined when no session exists (signed out)
   // session is Session object when authenticated
-  const isAuthenticated = auth.session !== undefined;
+  const isAuthenticated = auth.session !== undefined && auth.session !== null;
+
+  // Debug logging for development
+  console.log('[RootNavigator] Auth state:', {
+    isAuthenticated,
+    hasSession: !!auth.session,
+    sessionType: typeof auth.session,
+    sessionValue: auth.session === null ? 'null' : auth.session === undefined ? 'undefined' : 'object',
+    hasOnboarded: onboarding.hasOnboarded,
+    hasUserProfile: !!user.profile,
+    userName: user.name,
+  });
+
+  const initialRoute = !isAuthenticated
+    ? 'SignIn'
+    : onboarding.hasOnboarded
+      ? 'Main'
+      : 'Onboarding';
+
+  console.log('[RootNavigator] Computed initial route:', initialRoute);
 
   return (
     <AuthContext.Provider value={auth}>
       <UserContext.Provider value={user}>
         <OnboardingContext.Provider value={onboarding}>
+          {/* Dev-only debug indicator */}
+          {__DEV__ && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 50,
+                left: 10,
+                zIndex: 9999,
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                padding: 8,
+                borderRadius: 4,
+              }}
+            >
+              <Text style={{ color: '#0f0', fontSize: 10, fontFamily: 'Courier' }}>
+                Route: {initialRoute}
+              </Text>
+              <Text style={{ color: '#0f0', fontSize: 10, fontFamily: 'Courier' }}>
+                Auth: {isAuthenticated ? 'YES' : 'NO'}
+              </Text>
+            </View>
+          )}
           <NavigationContainer theme={navTheme}>
             <Stack.Navigator
-              initialRouteName={
-                !isAuthenticated ? 'SignIn' : onboarding.hasOnboarded ? 'Main' : 'Onboarding'
-              }
+              initialRouteName={initialRoute}
               screenOptions={{
                 headerShadowVisible: false,
                 headerStyle: { backgroundColor: palette.canvas },

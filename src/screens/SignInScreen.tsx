@@ -37,6 +37,9 @@ export function SignInScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Debug: Confirm this screen is mounted
+  console.log('[SignInScreen] Mounted/Rendered', { isSignUp, email, loading });
+
   const handleEmailAuth = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Missing fields', 'Please enter your email and password.');
