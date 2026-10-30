@@ -41,6 +41,7 @@ export function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   // Debug: Confirm this screen is mounted
   console.log('[SignInScreen] Mounted/Rendered', { isSignUp, email, loading });
@@ -52,6 +53,11 @@ export function SignInScreen() {
     });
     console.log('[SignInScreen] OAuth Redirect URI:', redirectUri);
     console.log('[SignInScreen] Add this to Supabase Dashboard -> Authentication -> Redirect URLs');
+    
+    // Show on screen for easy copying
+    if (__DEV__) {
+      setDebugInfo(`Redirect URI:\n${redirectUri}\n\nAdd to Supabase:\nexp://**\nglownome://**`);
+    }
   }, []);
 
   const handleEmailAuth = async () => {
@@ -94,90 +100,173 @@ export function SignInScreen() {
     }
 
     setLoading(true);
+    
+    // Diagnostic info to show on screen
+    let diagnostic = '';
+    
     try {
-      // Get the proper redirect URI (exp:// in Expo Go, glownome:// in builds)
+      // Step 1: Get redirect URI
       const redirectTo = makeRedirectUri({
         path: 'auth/callback',
       });
+      
+      diagnostic += `Step 1: Redirect URI\n${redirectTo}\n\n`;
+      console.log('[SignInScreen] Step 1 - Redirect URI:', redirectTo);
+      setDebugInfo(diagnostic);
 
-      console.log('[SignInScreen] Starting Google OAuth with redirect:', redirectTo);
-
-      // Request OAuth URL from Supabase (doesn't open browser automatically in RN)
+      // Step 2: Request OAuth URL from Supabase
+      diagnostic += 'Step 2: Requesting OAuth URL from Supabase...\n';
+      setDebugInfo(diagnostic);
+      console.log('[SignInScreen] Step 2 - Calling signInWithOAuth');
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo,
-          skipBrowserRedirect: true, // We'll handle the browser ourselves
+          skipBrowserRedirect: true,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        diagnostic += `❌ Supabase error: ${error.message}\n`;
+        setDebugInfo(diagnostic);
+        throw error;
+      }
 
       if (!data?.url) {
+        diagnostic += '❌ No OAuth URL returned\n';
+        setDebugInfo(diagnostic);
         throw new Error('No OAuth URL returned from Supabase');
       }
 
-      console.log('[SignInScreen] Opening OAuth URL in browser');
+      // Show OAuth URL host (not full URL with keys)
+      const oauthHost = new URL(data.url).host;
+      diagnostic += `✅ Got OAuth URL from: ${oauthHost}\n\n`;
+      diagnostic += 'Step 3: Opening browser...\n';
+      setDebugInfo(diagnostic);
+      console.log('[SignInScreen] Step 3 - Opening browser, OAuth host:', oauthHost);
 
+      // Step 3: Warm up browser for iOS (helps prevent immediate dismissal)
+      await WebBrowser.warmUpAsync();
+      
       // Open the OAuth URL in an in-app browser
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      console.log('[SignInScreen] Calling openAuthSessionAsync');
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
+        preferEphemeralSession: true, // Don't persist cookies across sessions
+      });
 
-      console.log('[SignInScreen] Browser result:', result.type);
+      console.log('[SignInScreen] Browser result:', JSON.stringify(result, null, 2));
+      diagnostic += `Browser result type: ${result.type}\n`;
+      
+      if ('url' in result && result.url) {
+        diagnostic += `Result URL: ${result.url.substring(0, 50)}...\n`;
+      }
+      
+      setDebugInfo(diagnostic);
 
-      if (result.type === 'success') {
+      if (result.type === 'success' && 'url' in result) {
+        diagnostic += '\nStep 4: Parsing callback URL...\n';
+        setDebugInfo(diagnostic);
+        console.log('[SignInScreen] Step 4 - Parsing result URL:', result.url);
+        
+        // Parse URL carefully - new URL() can be problematic in React Native
         const url = result.url;
+        let code: string | null = null;
         
-        // Parse the returned URL for auth data
-        const urlParams = new URL(url);
-        
-        // Check for OAuth code (PKCE flow)
-        const code = urlParams.searchParams.get('code');
+        // Try to extract code from query string
+        const queryMatch = url.match(/[?&]code=([^&#]+)/);
+        if (queryMatch) {
+          code = queryMatch[1];
+          console.log('[SignInScreen] Extracted code from query string');
+        }
         
         if (code) {
-          console.log('[SignInScreen] Exchanging code for session');
+          diagnostic += `✅ Got auth code: ${code.substring(0, 10)}...\n\n`;
+          diagnostic += 'Step 5: Exchanging code for session...\n';
+          setDebugInfo(diagnostic);
+          console.log('[SignInScreen] Step 5 - Exchanging code for session');
           
-          // Exchange the code for a session
           const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
           
-          if (sessionError) throw sessionError;
+          if (sessionError) {
+            diagnostic += `❌ Session error: ${sessionError.message}\n`;
+            setDebugInfo(diagnostic);
+            throw sessionError;
+          }
           
-          console.log('[SignInScreen] Google Sign-In successful (code flow)');
+          diagnostic += '✅ Sign-in successful!\n';
+          setDebugInfo(diagnostic);
+          console.log('[SignInScreen] Google Sign-In successful');
+          
+          // Show success briefly
+          Alert.alert('Success', 'Signed in with Google!');
         } else {
-          // Check for tokens in the fragment (implicit flow - deprecated but handle it)
-          const params = new URLSearchParams(url.split('#')[1] || '');
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          
-          if (accessToken) {
-            console.log('[SignInScreen] Setting session from tokens');
+          // Try fragment parsing (implicit flow)
+          const fragmentMatch = url.match(/#(.+)/);
+          if (fragmentMatch) {
+            const fragment = fragmentMatch[1];
+            const params = new URLSearchParams(fragment);
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
             
-            const { error: sessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || '',
-            });
-            
-            if (sessionError) throw sessionError;
-            
-            console.log('[SignInScreen] Google Sign-In successful (token flow)');
+            if (accessToken) {
+              diagnostic += '✅ Got access token (implicit flow)\n';
+              setDebugInfo(diagnostic);
+              console.log('[SignInScreen] Using implicit flow tokens');
+              
+              const { error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || '',
+              });
+              
+              if (sessionError) throw sessionError;
+              
+              Alert.alert('Success', 'Signed in with Google!');
+            } else {
+              diagnostic += '❌ No code or tokens in URL\n';
+              setDebugInfo(diagnostic);
+              throw new Error('No authentication code or tokens found in redirect URL');
+            }
           } else {
-            throw new Error('No authentication code or tokens found in redirect URL');
+            diagnostic += '❌ No code or tokens found\n';
+            setDebugInfo(diagnostic);
+            throw new Error('Could not parse authentication response');
           }
         }
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        console.log('[SignInScreen] User cancelled Google Sign-In');
-        // User cancelled - don't show an error, just return
-        return;
+      } else if (result.type === 'cancel') {
+        diagnostic += '⚠️ User cancelled\n';
+        setDebugInfo(diagnostic);
+        console.log('[SignInScreen] User cancelled');
+        Alert.alert('Cancelled', 'Google Sign-In was cancelled');
+      } else if (result.type === 'dismiss') {
+        diagnostic += '⚠️ Browser dismissed\n';
+        setDebugInfo(diagnostic);
+        console.log('[SignInScreen] Browser dismissed');
+        Alert.alert('Dismissed', 'Sign-in browser was dismissed');
+      } else if (result.type === 'locked') {
+        diagnostic += '⚠️ Browser locked\n';
+        setDebugInfo(diagnostic);
+        console.log('[SignInScreen] Browser locked');
+        Alert.alert('Error', 'Another browser is already open');
       } else {
+        diagnostic += `❌ Unexpected result: ${result.type}\n`;
+        setDebugInfo(diagnostic);
         throw new Error(`Unexpected browser result: ${result.type}`);
       }
     } catch (error: unknown) {
       console.error('[SignInScreen] Google Sign-In error:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      diagnostic += `\n❌ ERROR: ${errorMsg}\n`;
+      setDebugInfo(diagnostic);
+      
       Alert.alert(
-        'Google Sign-In failed',
-        error instanceof Error ? error.message : String(error),
+        'Google Sign-In Failed',
+        `${errorMsg}\n\nCheck debug info below for details.`,
       );
     } finally {
       setLoading(false);
+      // Cool down browser
+      WebBrowser.coolDownAsync();
     }
   };
 
@@ -269,6 +358,15 @@ export function SignInScreen() {
                 <MaterialCommunityIcons name="google" size={20} color={palette.ink} />
                 <Text className="font-ui text-label text-ink ml-sm">Continue with Google</Text>
               </TouchableOpacity>
+
+              {/* Debug info display - only in dev mode */}
+              {__DEV__ && debugInfo && (
+                <View className="mt-lg bg-surface border border-outline rounded-lg p-md">
+                  <Text className="font-mono text-[10px] text-ink" style={{ fontFamily: 'Courier' }}>
+                    {debugInfo}
+                  </Text>
+                </View>
+              )}
 
               {/* Placeholder for Apple Sign-In, disabled for now */}
               <View className="mt-md w-full opacity-40">
