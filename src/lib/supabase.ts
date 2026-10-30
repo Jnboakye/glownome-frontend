@@ -83,6 +83,7 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false, // Not needed in React Native
+        flowType: 'pkce', // Use PKCE flow for OAuth (more secure, required for mobile)
       },
     })
   : null;

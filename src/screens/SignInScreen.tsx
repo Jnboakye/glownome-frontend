@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -14,10 +14,15 @@ import { ActivityIndicator } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
 import { GlowBackground, PrimaryButton } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { supabase } from '../lib/supabase';
 import { fonts, palette } from '../theme';
+
+// Complete the OAuth session in Expo Go when the browser returns
+WebBrowser.maybeCompleteAuthSession();
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -39,6 +44,15 @@ export function SignInScreen() {
 
   // Debug: Confirm this screen is mounted
   console.log('[SignInScreen] Mounted/Rendered', { isSignUp, email, loading });
+
+  // Log the redirect URI for development - owner needs to add this to Supabase
+  useEffect(() => {
+    const redirectUri = makeRedirectUri({
+      path: 'auth/callback',
+    });
+    console.log('[SignInScreen] OAuth Redirect URI:', redirectUri);
+    console.log('[SignInScreen] Add this to Supabase Dashboard -> Authentication -> Redirect URLs');
+  }, []);
 
   const handleEmailAuth = async () => {
     if (!email.trim() || !password.trim()) {
@@ -81,23 +95,87 @@ export function SignInScreen() {
 
     setLoading(true);
     try {
+      // Get the proper redirect URI (exp:// in Expo Go, glownome:// in builds)
+      const redirectTo = makeRedirectUri({
+        path: 'auth/callback',
+      });
+
+      console.log('[SignInScreen] Starting Google OAuth with redirect:', redirectTo);
+
+      // Request OAuth URL from Supabase (doesn't open browser automatically in RN)
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Deep link back to the app after OAuth completes
-          redirectTo: 'glownome://auth/callback',
+          redirectTo,
+          skipBrowserRedirect: true, // We'll handle the browser ourselves
         },
       });
 
       if (error) throw error;
 
-      // In Expo Go, this opens the browser for OAuth flow
-      if (data.url) {
-        // The URL is automatically opened by Supabase; the session is set when
-        // the redirect returns to the app via the deep link scheme.
+      if (!data?.url) {
+        throw new Error('No OAuth URL returned from Supabase');
+      }
+
+      console.log('[SignInScreen] Opening OAuth URL in browser');
+
+      // Open the OAuth URL in an in-app browser
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+      console.log('[SignInScreen] Browser result:', result.type);
+
+      if (result.type === 'success') {
+        const url = result.url;
+        
+        // Parse the returned URL for auth data
+        const urlParams = new URL(url);
+        
+        // Check for OAuth code (PKCE flow)
+        const code = urlParams.searchParams.get('code');
+        
+        if (code) {
+          console.log('[SignInScreen] Exchanging code for session');
+          
+          // Exchange the code for a session
+          const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+          
+          if (sessionError) throw sessionError;
+          
+          console.log('[SignInScreen] Google Sign-In successful (code flow)');
+        } else {
+          // Check for tokens in the fragment (implicit flow - deprecated but handle it)
+          const params = new URLSearchParams(url.split('#')[1] || '');
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          
+          if (accessToken) {
+            console.log('[SignInScreen] Setting session from tokens');
+            
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+            
+            if (sessionError) throw sessionError;
+            
+            console.log('[SignInScreen] Google Sign-In successful (token flow)');
+          } else {
+            throw new Error('No authentication code or tokens found in redirect URL');
+          }
+        }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        console.log('[SignInScreen] User cancelled Google Sign-In');
+        // User cancelled - don't show an error, just return
+        return;
+      } else {
+        throw new Error(`Unexpected browser result: ${result.type}`);
       }
     } catch (error: unknown) {
-      Alert.alert('Google Sign-In failed', error instanceof Error ? error.message : String(error));
+      console.error('[SignInScreen] Google Sign-In error:', error);
+      Alert.alert(
+        'Google Sign-In failed',
+        error instanceof Error ? error.message : String(error),
+      );
     } finally {
       setLoading(false);
     }
