@@ -146,14 +146,10 @@ export function SignInScreen() {
       setDebugInfo(diagnostic);
       console.log('[SignInScreen] Step 3 - Opening browser, OAuth host:', oauthHost);
 
-      // Step 3: Warm up browser for iOS (helps prevent immediate dismissal)
-      await WebBrowser.warmUpAsync();
-      
       // Open the OAuth URL in an in-app browser
+      // Using default session mode (not ephemeral) so Google's CheckCookie works
       console.log('[SignInScreen] Calling openAuthSessionAsync');
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
-        preferEphemeralSession: true, // Don't persist cookies across sessions
-      });
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
 
       console.log('[SignInScreen] Browser result:', JSON.stringify(result, null, 2));
       diagnostic += `Browser result type: ${result.type}\n`;
@@ -265,8 +261,6 @@ export function SignInScreen() {
       );
     } finally {
       setLoading(false);
-      // Cool down browser
-      WebBrowser.coolDownAsync();
     }
   };
 
