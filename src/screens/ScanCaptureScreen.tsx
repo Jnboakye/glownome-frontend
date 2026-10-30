@@ -54,6 +54,7 @@ export function ScanCaptureScreen({ navigation }: Props) {
   const capture = useCallback(async () => {
     if (!camera.current || capturing) return;
     setCapturing(true);
+    setShowTips(false);
     setError(undefined);
     try {
       const photo = await camera.current.takePictureAsync({
@@ -82,8 +83,11 @@ export function ScanCaptureScreen({ navigation }: Props) {
   // ── permission gate ────────────────────────────────────────────────────────
   if (!permission) {
     return (
-      <View className="flex-1 bg-ink items-center justify-center">
+      <View className="flex-1 bg-ink items-center justify-center px-gutter">
         <ActivityIndicator color={palette.white} />
+        <Text className="font-ui text-subheading text-white mt-lg text-center">
+          Checking camera access…
+        </Text>
       </View>
     );
   }
@@ -93,6 +97,14 @@ export function ScanCaptureScreen({ navigation }: Props) {
       <View className="flex-1 bg-ink">
         <StatusBar style="light" />
         <SafeAreaView className="flex-1 justify-center px-gutter">
+          <IconButton
+            icon="close"
+            size={24}
+            iconColor={palette.white}
+            onPress={() => navigation.goBack()}
+            accessibilityLabel="Cancel scan"
+            style={{ position: 'absolute', top: 4, right: 8 }}
+          />
           <Text className="font-display text-title text-white">camera access</Text>
           <Text className="font-body text-body text-white/60 mt-md max-w-[320px]">
             Glownome needs the front camera to read your skin. The photo is used for your

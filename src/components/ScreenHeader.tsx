@@ -14,7 +14,9 @@ export function ScreenHeader({ eyebrow, title, subtitle }: Props) {
       {eyebrow ? (
         <Text className="font-ui text-caption text-accent mb-sm">{eyebrow.toUpperCase()}</Text>
       ) : null}
-      <Text className="font-title text-title text-ink">{title}</Text>
+      <Text accessibilityRole="header" className="font-title text-title text-ink">
+        {title}
+      </Text>
       {subtitle ? (
         <Text className="font-body text-body text-ink-soft mt-sm max-w-[320px]">{subtitle}</Text>
       ) : null}

@@ -11,7 +11,7 @@
  * break. If it does, widen `CaptureMode` here and `wireMode()` in ./scans.ts.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * WHAT STILL NEEDS A DEVELOPMENT BUILD (Expo SDK 57, Expo Go)
+ * WHAT STILL NEEDS A DEVELOPMENT BUILD (Expo SDK 58, Expo Go)
  *
  *   • expo-face-detector was REMOVED from Expo (it blocked their ARM64
  *     simulator migration). Face detection now requires a development build.

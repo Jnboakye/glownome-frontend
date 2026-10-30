@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import { Card, Divider, List, Switch, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { GlowBackground, PrimaryButton, ScreenHeader, SectionTitle, useTabBarSpace } from '../components';
+import { GlowBackground, PrimaryButton, SectionTitle, useTabBarSpace } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { useOnboardingContext } from '../hooks/onboardingContext';
 import { clearScans, listScans } from '../api';
@@ -19,48 +19,79 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 const itemTitle = { fontFamily: fonts.ui, fontSize: 15, color: palette.ink };
 const itemDescription = { fontFamily: fonts.body, fontSize: 13, color: palette.inkFaint };
 
+const PRIVACY_BODY =
+  'Scan photos stay on this phone unless you choose to upload them for analysis. ' +
+  'Scores and answers are used only to personalise your read. A fuller privacy policy will land here before launch.';
+
 export function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { reset } = useOnboardingContext();
   const { name, profile, clear: clearUser } = useUser();
-  const [scanReminders, setScanReminders] = useState(true);
-  const [routineNudges, setRoutineNudges] = useState(true);
-  const [storePhotos, setStorePhotos] = useState(false);
+  // Local preferences until push notifications ship — toggles are honest about that.
+  const [scanReminders, setScanReminders] = useState(false);
+  const [routineNudges, setRoutineNudges] = useState(false);
+  const [storePhotos, setStorePhotos] = useState(true);
   const [scanCount, setScanCount] = useState(0);
-  // Clears the floating tab bar (R1). The rest of this screen waits for R5.
   const bottomSpace = useTabBarSpace();
 
-  useEffect(() => {
-    let cancelled = false;
-    listScans().then((scans) => {
-      if (!cancelled) setScanCount(scans.length);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      listScans().then((scans) => {
+        if (!cancelled) setScanCount(scans.length);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const initials = initialsOf(name);
 
-  const onReplayOnboarding = useCallback(async () => {
+  const wipeLocalData = useCallback(async () => {
     await clearUser();
     await clearScans();
     await reset();
     navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
   }, [clearUser, navigation, reset]);
 
-  const onLogout = useCallback(() => {
-    Alert.alert('Log out', 'This clears your name, your answers and every scan on this device.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log out',
-        style: 'destructive',
-        onPress: () => {
-          void onReplayOnboarding();
+  const onReplayOnboarding = useCallback(() => {
+    Alert.alert(
+      'Replay the intro?',
+      'This clears your name, answers and every scan on this device, then starts onboarding again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Replay',
+          style: 'destructive',
+          onPress: () => {
+            void wipeLocalData();
+          },
         },
-      },
-    ]);
-  }, [onReplayOnboarding]);
+      ],
+    );
+  }, [wipeLocalData]);
+
+  const onLogout = useCallback(() => {
+    Alert.alert(
+      'Log out',
+      'This clears your name, your answers and every scan on this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: () => {
+            void wipeLocalData();
+          },
+        },
+      ],
+    );
+  }, [wipeLocalData]);
+
+  const onPrivacy = useCallback(() => {
+    Alert.alert('How your skin data is used', PRIVACY_BODY, [{ text: 'Got it' }]);
+  }, []);
 
   return (
     <GlowBackground variant="mist">
@@ -69,9 +100,14 @@ export function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: bottomSpace }}
           showsVerticalScrollIndicator={false}
         >
-          <ScreenHeader title="Profile" />
+          <Text
+            accessibilityRole="header"
+            className="font-display text-title text-ink px-gutter mt-lg"
+          >
+            profile
+          </Text>
 
-          <View className="px-gutter mb-2xl">
+          <View className="px-gutter mt-xl mb-2xl">
             <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
               <Card.Content className="flex-row items-center py-sm">
                 <View className="w-[56px] h-[56px] rounded-pill bg-accent-soft items-center justify-center mr-lg">
@@ -91,7 +127,6 @@ export function ProfileScreen() {
               <Card.Content className="flex-row py-lg gap-lg">
                 <View className="flex-[2]">
                   <Text className="font-ui text-caption text-ink-faint mb-px">MAIN CONCERN</Text>
-                  {/* Straight from the onboarding wizard. Nothing invented. */}
                   <Text className="font-ui text-label text-ink" numberOfLines={2}>
                     {profile?.concern?.length ? labelFor('concern', profile.concern) : 'Not set'}
                   </Text>
@@ -109,28 +144,30 @@ export function ProfileScreen() {
             <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
               <List.Item
                 title="Weekly scan reminder"
-                description="A nudge on your scan day"
+                description="Coming with push notifications"
                 titleStyle={itemTitle}
                 descriptionStyle={itemDescription}
                 right={() => (
                   <Switch
                     value={scanReminders}
                     onValueChange={setScanReminders}
-                    color={palette.ink}
+                    color={palette.accent}
+                    disabled
                   />
                 )}
               />
               <Divider className="bg-outline" />
               <List.Item
                 title="Routine nudges"
-                description="Morning and evening step reminders"
+                description="Coming with push notifications"
                 titleStyle={itemTitle}
                 descriptionStyle={itemDescription}
                 right={() => (
                   <Switch
                     value={routineNudges}
                     onValueChange={setRoutineNudges}
-                    color={palette.ink}
+                    color={palette.accent}
+                    disabled
                   />
                 )}
               />
@@ -142,11 +179,16 @@ export function ProfileScreen() {
             <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
               <List.Item
                 title="Store scan photos"
-                description="Keep photos on your device for before-and-after views"
+                description="On for progress views — clearing them lands with a later privacy pass"
                 titleStyle={itemTitle}
                 descriptionStyle={itemDescription}
                 right={() => (
-                  <Switch value={storePhotos} onValueChange={setStorePhotos} color={palette.ink} />
+                  <Switch
+                    value={storePhotos}
+                    onValueChange={setStorePhotos}
+                    color={palette.accent}
+                    disabled
+                  />
                 )}
               />
               <Divider className="bg-outline" />
@@ -154,7 +196,8 @@ export function ProfileScreen() {
                 title="How my skin data is used"
                 titleStyle={itemTitle}
                 right={(props) => <List.Icon {...props} icon="chevron-right" />}
-                onPress={() => undefined}
+                onPress={onPrivacy}
+                accessibilityRole="button"
               />
             </Card>
           </View>
@@ -164,9 +207,11 @@ export function ProfileScreen() {
             <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
               <List.Item
                 title="Replay the intro"
+                description="Clears local data and starts onboarding again"
                 titleStyle={itemTitle}
+                descriptionStyle={itemDescription}
                 right={(props) => <List.Icon {...props} icon="chevron-right" />}
-                onPress={() => void onReplayOnboarding()}
+                onPress={onReplayOnboarding}
               />
               <Divider className="bg-outline" />
               <List.Item

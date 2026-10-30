@@ -14,10 +14,15 @@ export function RoutineScreen() {
           contentContainerClassName="flex-grow"
           contentContainerStyle={{ paddingBottom: bottomSpace }}
         >
-          <Text className="font-display text-title text-ink px-gutter mt-lg">routine</Text>
+          <Text
+            accessibilityRole="header"
+            className="font-display text-title text-ink px-gutter mt-lg"
+          >
+            routine
+          </Text>
           <EmptyState
             icon="clipboard-check-outline"
-            title="routines are on the way"
+            title="Routines are on the way"
             body="Morning and night steps with a daily check-off, built from your scans. Not built yet."
           />
         </ScrollView>
