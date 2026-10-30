@@ -3,7 +3,7 @@
 AI-powered skincare app. Scan your skin, get a read on it, get products matched
 to what it actually needs, and watch it change week to week.
 
-React Native (Expo SDK 54) · TypeScript · NativeWind (Tailwind) · React Native Paper · React Navigation 7
+React Native (Expo SDK 58) · TypeScript · NativeWind (Tailwind) · React Native Paper · React Navigation 7
 
 ## Running it
 
@@ -13,20 +13,21 @@ npx expo start
 ```
 
 Then press `i` for the iOS simulator, `a` for Android, or scan the QR code with
-Expo Go on your phone. Camera and photo-library access are requested at the
+Expo Go on your phone (SDK 58). Camera and photo-library access are requested at the
 point of use on the Scan screen.
 
-### Why SDK 54 and not the latest
+If Expo Go still shows an SDK mismatch after pulling this branch, clear the Metro
+cache and reopen: `npx expo start -c`.
 
-Expo stopped publishing new Expo Go builds to the App Store after SDK 54 — 55,
-56 and 57 were never released there. Staying on 54 is what lets this project run
-in the Expo Go app you can actually install. Moving to a newer SDK means moving
-to a development build (`npx expo run:ios`) or `eas go`, which is Expo's
-recommended path once the project is past the prototype stage.
+### SDK 58 and Expo Go
 
-`react` and `react-native` are pinned through `overrides` in package.json,
-because NativeWind's peer ranges otherwise let npm install a second, newer copy
-of each alongside them.
+This project targets **Expo SDK 58**, matching current Expo Go. `react`,
+`react-native`, `react-native-reanimated`, and `react-native-worklets` are pinned
+through `overrides` in package.json so NativeWind's peer ranges cannot install a
+second copy alongside them.
+
+For native modules Expo Go does not include (face detection, vision-camera,
+Skia), use a development build (`npx expo run:ios`) when you need those.
 
 ## Structure
 
