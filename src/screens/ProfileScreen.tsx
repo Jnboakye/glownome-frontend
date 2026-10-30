@@ -47,8 +47,8 @@ export function ProfileScreen() {
     await clearUser();
     await clearScans();
     await reset();
-    navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
-  }, [clearUser, navigation, reset]);
+    // Navigation to Onboarding happens automatically via conditional rendering
+  }, [clearUser, reset]);
 
   const onLogout = useCallback(() => {
     Alert.alert(
@@ -64,12 +64,12 @@ export function ProfileScreen() {
             await clearScans();
             await reset();
             await signOut();
-            navigation.reset({ index: 0, routes: [{ name: 'SignIn' }] });
+            // Navigation to SignIn happens automatically via conditional rendering
           },
         },
       ],
     );
-  }, [clearUser, navigation, reset, signOut]);
+  }, [clearUser, reset, signOut]);
 
   return (
     <GlowBackground variant="mist">
