@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SkinProfile } from '../data/onboardingQuestions';
-import { clearUserId, syncProfile } from '../api/identity';
+import { syncProfile } from '../api/identity';
 
 const KEY = 'glownome.profile.answers.v1';
 
@@ -60,9 +60,8 @@ export function useStoredProfile() {
     } catch {
       // Non-fatal.
     }
-    // "Replay the intro" starts a genuinely new user, so the server-side
-    // identity goes with it rather than leaving the next profile orphaned.
-    await clearUserId();
+    // With Supabase Auth, the user's identity is tied to their auth session.
+    // Clearing the profile locally is sufficient; sign-out handles the rest.
   }, []);
 
   return { loading, profile, setProfile, clearProfile };

@@ -1,45 +1,26 @@
 /**
  * Who the user is, as far as the server is concerned.
  *
- * There is no auth. `POST /profile` mints a row and returns an id; that id is
- * the whole identity model for now. It is kept on the device and sent with
- * every scan — without it the server has no concerns to match products
- * against, so an analysis can never recommend anything.
+ * With Supabase Auth, the profile id equals the authenticated user's id.
+ * The server derives the user id from the JWT access token, so userId is no
+ * longer sent in request bodies or query params.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SkinProfile } from '../data/onboardingQuestions';
 import { ApiError, isLiveBackend, request } from './client';
+import { supabase } from '../lib/supabase';
 
-const KEY = 'glownome.profile.userId.v1';
-
-let cached: string | null | undefined;
-
+/**
+ * Returns the current Supabase user id, or null when not signed in.
+ */
 export async function getUserId(): Promise<string | null> {
-  if (cached !== undefined) return cached;
   try {
-    cached = await AsyncStorage.getItem(KEY);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.user?.id ?? null;
   } catch {
-    cached = null;
-  }
-  return cached;
-}
-
-async function storeUserId(id: string): Promise<void> {
-  cached = id;
-  try {
-    await AsyncStorage.setItem(KEY, id);
-  } catch {
-    // Non-fatal: a new profile is created on the next launch.
-  }
-}
-
-export async function clearUserId(): Promise<void> {
-  cached = null;
-  try {
-    await AsyncStorage.removeItem(KEY);
-  } catch {
-    // Non-fatal.
+    return null;
   }
 }
 
@@ -62,29 +43,33 @@ function toPayload(profile: SkinProfile) {
 /**
  * Push the answers to the server, creating the profile the first time.
  *
- * Returns the user id, or null when there is no backend configured. Safe to
- * call on every save — it updates in place once a profile exists.
+ * Returns the user id, or null when there is no backend configured or not
+ * signed in. Safe to call on every save — the backend updates in place when
+ * a profile exists, using the user id from the JWT.
+ *
+ * The new backend contract:
+ * - PUT /profile (no id in path) updates the current user's profile
+ * - POST /profile creates a profile for the current user
+ * - The profile id equals the Supabase user id (derived from the JWT)
  */
 export async function syncProfile(profile: SkinProfile): Promise<string | null> {
   if (!isLiveBackend()) return null;
 
+  const userId = await getUserId();
+  if (!userId) return null; // Not signed in
+
   const body = JSON.stringify(toPayload(profile));
-  const existing = await getUserId();
 
-  if (existing) {
-    try {
-      await request<void>(`/profile/${encodeURIComponent(existing)}`, { method: 'PUT', body });
-      return existing;
-    } catch (error) {
-      // A 404 means the stored id no longer exists server-side — routine in
-      // local development, where the database gets reset. Fall through and
-      // mint a new one rather than failing forever.
-      if (!(error instanceof ApiError && error.status === 404)) throw error;
-      await clearUserId();
+  try {
+    // Try updating first — most calls are saves after the profile exists
+    await request<void>('/profile', { method: 'PUT', body });
+    return userId;
+  } catch (error) {
+    // 404 means no profile exists yet for this user — create it
+    if (error instanceof ApiError && error.status === 404) {
+      await request<{ userId: string }>('/profile', { method: 'POST', body });
+      return userId;
     }
+    throw error;
   }
-
-  const created = await request<{ userId: string }>('/profile', { method: 'POST', body });
-  await storeUserId(created.userId);
-  return created.userId;
 }

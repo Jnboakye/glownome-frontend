@@ -4,6 +4,7 @@ import { NavigationContainer, DefaultTheme, Theme } from '@react-navigation/nati
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 import { MainTabs } from './MainTabs';
+import { SignInScreen } from '../screens/SignInScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { OnboardingScanScreen } from '../screens/OnboardingScanScreen';
 import { OnboardingRoutineScreen } from '../screens/OnboardingRoutineScreen';
@@ -16,6 +17,8 @@ import { ProductDetailScreen } from '../screens/ProductDetailScreen';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { OnboardingContext } from '../hooks/onboardingContext';
 import { UserContext } from '../hooks/userContext';
+import { AuthContext } from '../hooks/authContext';
+import { useAuthSession } from '../hooks/useAuthSession';
 import { useStoredName } from '../hooks/useStoredName';
 import { useStoredProfile } from '../hooks/useStoredProfile';
 import { fonts, palette } from '../theme';
@@ -35,6 +38,7 @@ const navTheme: Theme = {
 };
 
 export function RootNavigator() {
+  const auth = useAuthSession();
   const onboarding = useOnboarding();
   const storedName = useStoredName();
   const storedProfile = useStoredProfile();
@@ -55,7 +59,7 @@ export function RootNavigator() {
     [storedName, storedProfile],
   );
 
-  if (onboarding.loading || user.loading) {
+  if (auth.loading || onboarding.loading || user.loading) {
     return (
       <View className="flex-1 items-center justify-center bg-canvas">
         <ActivityIndicator color={palette.ink} />
@@ -63,69 +67,81 @@ export function RootNavigator() {
     );
   }
 
+  // Auth gate: show sign-in when not authenticated
+  const isAuthenticated = auth.session !== undefined;
+
   return (
-    <UserContext.Provider value={user}>
-      <OnboardingContext.Provider value={onboarding}>
-      <NavigationContainer theme={navTheme}>
-        <Stack.Navigator
-          initialRouteName={onboarding.hasOnboarded ? 'Main' : 'Onboarding'}
-          screenOptions={{
-            headerShadowVisible: false,
-            headerStyle: { backgroundColor: palette.canvas },
-            headerTitleStyle: { fontFamily: fonts.title, fontSize: 17 },
-            headerTintColor: palette.ink,
-            contentStyle: { backgroundColor: palette.canvas },
-          }}
-        >
-          <Stack.Screen
-            name="Onboarding"
-            component={OnboardingScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="OnboardingScan"
-            component={OnboardingScanScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="OnboardingRoutine"
-            component={OnboardingRoutineScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="OnboardingPromise"
-            component={OnboardingPromiseScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="OnboardingName"
-            component={OnboardingNameScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="OnboardingProfile"
-            component={OnboardingProfileScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-          <Stack.Screen
-            name="ScanCapture"
-            component={ScanCaptureScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Results"
-            component={ResultsScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="ProductDetail"
-            component={ProductDetailScreen}
-            options={{ title: '' }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-      </OnboardingContext.Provider>
-    </UserContext.Provider>
+    <AuthContext.Provider value={auth}>
+      <UserContext.Provider value={user}>
+        <OnboardingContext.Provider value={onboarding}>
+          <NavigationContainer theme={navTheme}>
+            <Stack.Navigator
+              initialRouteName={
+                !isAuthenticated ? 'SignIn' : onboarding.hasOnboarded ? 'Main' : 'Onboarding'
+              }
+              screenOptions={{
+                headerShadowVisible: false,
+                headerStyle: { backgroundColor: palette.canvas },
+                headerTitleStyle: { fontFamily: fonts.title, fontSize: 17 },
+                headerTintColor: palette.ink,
+                contentStyle: { backgroundColor: palette.canvas },
+              }}
+            >
+              <Stack.Screen
+                name="SignIn"
+                component={SignInScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="Onboarding"
+                component={OnboardingScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="OnboardingScan"
+                component={OnboardingScanScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="OnboardingRoutine"
+                component={OnboardingRoutineScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="OnboardingPromise"
+                component={OnboardingPromiseScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="OnboardingName"
+                component={OnboardingNameScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="OnboardingProfile"
+                component={OnboardingProfileScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+              <Stack.Screen
+                name="ScanCapture"
+                component={ScanCaptureScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="Results"
+                component={ResultsScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="ProductDetail"
+                component={ProductDetailScreen}
+                options={{ title: '' }}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </OnboardingContext.Provider>
+      </UserContext.Provider>
+    </AuthContext.Provider>
   );
 }

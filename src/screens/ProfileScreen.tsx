@@ -9,6 +9,7 @@ import { RootStackParamList } from '../navigation/types';
 import { useOnboardingContext } from '../hooks/onboardingContext';
 import { clearScans, listScans } from '../api';
 import { initialsOf, useUser } from '../hooks/userContext';
+import { useAuth } from '../hooks/authContext';
 import { labelFor } from '../data/onboardingQuestions';
 import { fonts, palette, shadow } from '../theme';
 
@@ -23,6 +24,7 @@ export function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { reset } = useOnboardingContext();
   const { name, profile, clear: clearUser } = useUser();
+  const { user, signOut } = useAuth();
   const [scanReminders, setScanReminders] = useState(true);
   const [routineNudges, setRoutineNudges] = useState(true);
   const [storePhotos, setStorePhotos] = useState(false);
@@ -39,6 +41,7 @@ export function ProfileScreen() {
   }, []);
 
   const initials = initialsOf(name);
+  const userEmail = user?.email ?? 'Not signed in';
 
   const onReplayOnboarding = useCallback(async () => {
     await clearUser();
@@ -48,17 +51,25 @@ export function ProfileScreen() {
   }, [clearUser, navigation, reset]);
 
   const onLogout = useCallback(() => {
-    Alert.alert('Log out', 'This clears your name, your answers and every scan on this device.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log out',
-        style: 'destructive',
-        onPress: () => {
-          void onReplayOnboarding();
+    Alert.alert(
+      'Sign out',
+      'This will sign you out and clear your local data (name, answers, and scans).',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            await clearUser();
+            await clearScans();
+            await reset();
+            await signOut();
+            navigation.reset({ index: 0, routes: [{ name: 'SignIn' }] });
+          },
         },
-      },
-    ]);
-  }, [onReplayOnboarding]);
+      ],
+    );
+  }, [clearUser, navigation, reset, signOut]);
 
   return (
     <GlowBackground variant="mist">
@@ -76,9 +87,8 @@ export function ProfileScreen() {
                   <Text className="font-title text-heading text-ink">
                     {name ?? 'Your profile'}
                   </Text>
-                  {/* No auth yet — say so rather than invent an email address. */}
                   <Text className="font-body text-body-sm text-ink-faint mt-px">
-                    Not signed in
+                    {userEmail}
                   </Text>
                 </View>
               </Card.Content>
@@ -177,7 +187,7 @@ export function ProfileScreen() {
           </View>
 
           <View className="px-gutter mb-2xl">
-            <PrimaryButton label="Log out" variant="outline" onPress={onLogout} />
+            <PrimaryButton label="Sign out" variant="outline" onPress={onLogout} />
           </View>
         </ScrollView>
       </SafeAreaView>

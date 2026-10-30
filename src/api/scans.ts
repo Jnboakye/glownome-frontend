@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isLiveBackend, request } from './client';
-import { getUserId } from './identity';
 import { CaptureMode, ScanCaptureResult } from './scanCapture';
 import { SkinAnalysis } from './types';
 
@@ -92,13 +91,13 @@ export async function saveScan(capture: ScanCaptureResult): Promise<ScanRecord> 
   if (isLiveBackend()) {
     try {
       const dataUri = await toDataUri(capture.photoUri, capture.base64);
+      // userId is no longer sent — the backend derives it from the JWT
       const created = await request<{ scanId: string; storedAt: string }>('/scans', {
         method: 'POST',
         body: JSON.stringify({
           photoUri: dataUri,
           mode: wireMode(capture.mode),
           capturedAt: capture.capturedAt,
-          userId: await getUserId(),
         }),
       });
       // The server's uuid becomes the scan's identity — POST /analyses looks
