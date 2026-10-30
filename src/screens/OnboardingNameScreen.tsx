@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { IconButton, Text } from 'react-native-paper';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -28,7 +29,7 @@ export function OnboardingNameScreen({ navigation }: Props) {
 
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   const headIn = useRef(new Animated.Value(0)).current;
   const fieldIn = useRef(new Animated.Value(0)).current;
