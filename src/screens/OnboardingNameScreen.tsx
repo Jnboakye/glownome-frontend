@@ -28,7 +28,8 @@ export function OnboardingNameScreen({ navigation }: Props) {
 
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  // Note: React Native 0.88 changed TextInput types; using any for ref compatibility
+  const inputRef = useRef<any>(null);
 
   const headIn = useRef(new Animated.Value(0)).current;
   const fieldIn = useRef(new Animated.Value(0)).current;

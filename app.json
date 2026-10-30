@@ -43,7 +43,10 @@
           "cameraPermission": "Glownome uses the front camera to scan your skin.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-status-bar"
     ]
   }
 }

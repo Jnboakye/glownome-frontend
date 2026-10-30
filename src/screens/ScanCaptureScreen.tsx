@@ -252,7 +252,7 @@ export function ScanCaptureScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  spotlightWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  spotlightWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   spotlight: {
     width: GUIDE,
     height: GUIDE * 1.12,
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
     borderWidth: 900,
     borderColor: 'rgba(9,9,11,0.62)',
   },
-  guideWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  guideWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   guideRing: {
     position: 'absolute',
     width: GUIDE,
