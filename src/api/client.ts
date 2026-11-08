@@ -108,12 +108,22 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = `Request failed (${response.status}) for ${path}`;
+    let code: string | undefined;
     try {
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as { error?: string; code?: string };
       if (body?.error) message = body.error;
+      if (body?.code) code = body.code;
     } catch {
       // Not every failure has a JSON body — keep the generic message.
     }
+
+    // Special case: 403 with code 'consent_required' means the user hasn't
+    // granted photo-analysis consent yet. Import dynamically to avoid cycles.
+    if (response.status === 403 && code === 'consent_required') {
+      const { ConsentRequiredError } = await import('./gdpr');
+      throw new ConsentRequiredError(message);
+    }
+
     throw new ApiError(message, response.status);
   }
 

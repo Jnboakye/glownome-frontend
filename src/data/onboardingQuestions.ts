@@ -36,7 +36,7 @@ export type Question =
       placeholder: string;
     };
 
-export const MIN_AGE = 13;
+export const MIN_AGE = 16;
 export const MAX_AGE = 99;
 
 export const QUESTIONS: Question[] = [

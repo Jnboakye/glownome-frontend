@@ -12,6 +12,7 @@ import { OnboardingRoutineScreen } from '../screens/OnboardingRoutineScreen';
 import { OnboardingPromiseScreen } from '../screens/OnboardingPromiseScreen';
 import { OnboardingNameScreen } from '../screens/OnboardingNameScreen';
 import { OnboardingProfileScreen } from '../screens/OnboardingProfileScreen';
+import { ConsentScreen } from '../screens/ConsentScreen';
 import { ScanCaptureScreen } from '../screens/ScanCaptureScreen';
 import { ResultsScreen } from '../screens/ResultsScreen';
 import { ProductDetailScreen } from '../screens/ProductDetailScreen';
@@ -228,6 +229,11 @@ export function RootNavigator() {
                 // Authenticated and onboarded: show main app
                 <>
                   <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="Consent"
+                    component={ConsentScreen}
+                    options={{ headerShown: false }}
+                  />
                   <Stack.Screen
                     name="ScanCapture"
                     component={ScanCaptureScreen}

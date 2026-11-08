@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, Platform, ScrollView, Share, View } from 'react-native';
 import { Card, Divider, List, Switch, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -7,7 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GlowBackground, PrimaryButton, ScreenHeader, SectionTitle } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { useOnboardingContext } from '../hooks/onboardingContext';
-import { clearScans, listScans } from '../api';
+import { ApiError, clearScans, deleteAccount, exportData, listScans } from '../api';
 import { initialsOf, useUser } from '../hooks/userContext';
 import { useAuth } from '../hooks/authContext';
 import { labelFor } from '../data/onboardingQuestions';
@@ -66,6 +66,80 @@ export function ProfileScreen() {
             await signOut();
             // Navigation to SignIn happens automatically via conditional rendering
           },
+        },
+      ],
+    );
+  }, [clearUser, reset, signOut]);
+
+  const onExportData = useCallback(async () => {
+    try {
+      const data = await exportData();
+      const jsonString = JSON.stringify(data, null, 2);
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `glownome-data-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        await Share.share({
+          message: jsonString,
+          title: 'Export your Glownome data',
+        });
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        Alert.alert('Export failed', error.message, [{ text: 'OK' }]);
+      } else {
+        Alert.alert('Export failed', 'Could not export your data. Please try again.', [
+          { text: 'OK' },
+        ]);
+      }
+    }
+  }, []);
+
+  const onDeleteAccount = useCallback(() => {
+    const performDelete = async () => {
+      try {
+        await deleteAccount();
+        await clearUser();
+        await clearScans();
+        await reset();
+        await signOut();
+        Alert.alert(
+          'Account deleted',
+          'Your account and all data have been permanently deleted.',
+          [{ text: 'OK' }],
+        );
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 500) {
+          Alert.alert(
+            'Server error',
+            'Could not delete your account. Please try again later.',
+            [{ text: 'Retry', onPress: performDelete }, { text: 'Cancel' }],
+          );
+        } else {
+          Alert.alert(
+            'Connection error',
+            'Could not reach the server. Please check your connection and try again.',
+            [{ text: 'Retry', onPress: performDelete }, { text: 'Cancel' }],
+          );
+        }
+      }
+    };
+
+    Alert.alert(
+      'Delete account',
+      'This will permanently delete your account and all associated data, including your profile, scans, analyses, and consent records. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: performDelete,
         },
       ],
     );
@@ -156,10 +230,33 @@ export function ProfileScreen() {
               />
               <Divider className="bg-outline" />
               <List.Item
+                title="Export my data"
+                description="Download all your data as a JSON file"
+                titleStyle={itemTitle}
+                descriptionStyle={itemDescription}
+                right={(props) => <List.Icon {...props} icon="chevron-right" />}
+                onPress={onExportData}
+              />
+              <Divider className="bg-outline" />
+              <List.Item
                 title="How my skin data is used"
                 titleStyle={itemTitle}
                 right={(props) => <List.Icon {...props} icon="chevron-right" />}
                 onPress={() => undefined}
+              />
+            </Card>
+          </View>
+
+          <View className="px-gutter mb-2xl">
+            <SectionTitle title="Account" />
+            <Card mode="contained" className="bg-surface rounded-lg" style={shadow.card}>
+              <List.Item
+                title="Delete account"
+                description="Permanently delete your account and all data"
+                titleStyle={itemTitle}
+                descriptionStyle={itemDescription}
+                right={(props) => <List.Icon {...props} icon="chevron-right" />}
+                onPress={onDeleteAccount}
               />
             </Card>
           </View>

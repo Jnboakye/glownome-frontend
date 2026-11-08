@@ -14,6 +14,7 @@ export type RootStackParamList = {
   OnboardingPromise: undefined;
   OnboardingName: undefined;
   OnboardingProfile: undefined;
+  Consent: { onSuccess?: () => void } | undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   ScanCapture: undefined;
   Results: { scanId: string };

@@ -5,3 +5,4 @@ export * from './scanCapture';
 export * from './scans';
 export * from './analysis';
 export * from './products';
+export * from './gdpr';

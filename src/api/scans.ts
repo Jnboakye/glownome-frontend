@@ -73,6 +73,40 @@ async function writeAll(scans: ScanRecord[]): Promise<void> {
   }
 }
 
+/**
+ * Backend response shape for GET /scans with pagination.
+ */
+export interface ScanListResponse {
+  scans: Array<{
+    id: string;
+    capturedAt: string;
+    hasAnalysis: boolean;
+    overallScore?: number;
+    photoUrl?: string;
+  }>;
+  total: number;
+}
+
+/**
+ * Fetch scans from the backend with pagination.
+ * Falls back to local AsyncStorage when offline or no backend.
+ */
+export async function listScansFromBackend(
+  limit: number = 50,
+  offset: number = 0,
+): Promise<ScanListResponse | null> {
+  if (!isLiveBackend()) return null;
+
+  try {
+    return await request<ScanListResponse>(
+      `/scans?limit=${limit}&offset=${offset}`,
+      { method: 'GET' },
+    );
+  } catch {
+    return null;
+  }
+}
+
 /** Newest first. */
 export async function listScans(): Promise<ScanRecord[]> {
   const scans = await readAll();
