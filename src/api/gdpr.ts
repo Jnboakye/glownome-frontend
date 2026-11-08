@@ -10,11 +10,19 @@ import { request } from './client';
 export interface ConsentRecord {
   consentType: string;
   policyVersion: string;
-  grantedAt: string;
+  consentedAt: string;
+  ipAddress?: string;
 }
 
-export interface ConsentResponse {
+export interface ConsentListResponse {
   consents: ConsentRecord[];
+}
+
+export interface ConsentGrantResponse {
+  consentType: string;
+  policyVersion: string;
+  consentedAt: string;
+  ipAddress?: string;
 }
 
 /**
@@ -22,20 +30,21 @@ export interface ConsentResponse {
  * Returns an empty array when no consents exist yet.
  */
 export async function getConsents(): Promise<ConsentRecord[]> {
-  const response = await request<ConsentResponse>('/consent', { method: 'GET' });
+  const response = await request<ConsentListResponse>('/consent', { method: 'GET' });
   return response.consents;
 }
 
 /**
  * Grant a specific consent.
+ * Returns 201 with the granted consent record including timestamp and IP.
  * @param consentType - e.g. 'photo-analysis'
  * @param policyVersion - e.g. '1.0'
  */
 export async function grantConsent(
   consentType: string,
   policyVersion: string,
-): Promise<void> {
-  await request('/consent', {
+): Promise<ConsentGrantResponse> {
+  return await request<ConsentGrantResponse>('/consent', {
     method: 'POST',
     body: JSON.stringify({ consentType, policyVersion }),
   });
@@ -49,12 +58,22 @@ export async function deleteAccount(): Promise<void> {
   await request<void>('/profile', { method: 'DELETE' });
 }
 
+export interface ExportDataResponse {
+  userId: string;
+  exportedAt: string;
+  profile: Record<string, unknown>;
+  scans: unknown[];
+  routinePlans?: unknown[];
+  consents: ConsentRecord[];
+}
+
 /**
  * Export all user data as a JSON object.
- * Includes profile, scans, analyses, and consent records.
+ * Includes profile, scans, analyses, routine plans, and consent records.
+ * Returns GDPR Art. 15 compliant data export.
  */
-export async function exportData(): Promise<Record<string, unknown>> {
-  return await request<Record<string, unknown>>('/profile/export', { method: 'GET' });
+export async function exportData(): Promise<ExportDataResponse> {
+  return await request<ExportDataResponse>('/profile/export', { method: 'GET' });
 }
 
 /**

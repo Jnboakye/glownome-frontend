@@ -24,7 +24,8 @@ export function ConsentScreen({ navigation, route }: Props) {
   const handleAgree = useCallback(async () => {
     setLoading(true);
     try {
-      await grantConsent('photo-analysis', '1.0');
+      const response = await grantConsent('photo-analysis', '1.0');
+      console.log('[Consent] Granted:', response);
       if (onSuccess) {
         onSuccess();
       } else {

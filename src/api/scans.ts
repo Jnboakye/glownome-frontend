@@ -75,31 +75,42 @@ async function writeAll(scans: ScanRecord[]): Promise<void> {
 
 /**
  * Backend response shape for GET /scans with pagination.
+ * Mirrors the backend's ScanListResponse (scans_models.py).
  */
+export interface ScanListItem {
+  id: string;
+  photoUri: string | null;
+  mode: '2d' | '3d';
+  capturedAt: string;
+  hasAnalysis: boolean;
+  overallScore?: number;
+}
+
 export interface ScanListResponse {
-  scans: Array<{
-    id: string;
-    capturedAt: string;
-    hasAnalysis: boolean;
-    overallScore?: number;
-    photoUrl?: string;
-  }>;
+  scans: ScanListItem[];
   total: number;
+  limit: number;
+  offset: number;
 }
 
 /**
  * Fetch scans from the backend with pagination.
  * Falls back to local AsyncStorage when offline or no backend.
+ * 
+ * @param limit - Items per page (1-100, default 20)
+ * @param offset - Pagination offset (default 0)
+ * @param includePhoto - Include signed photo URLs with 1hr TTL (default false)
  */
 export async function listScansFromBackend(
-  limit: number = 50,
+  limit: number = 20,
   offset: number = 0,
+  includePhoto: boolean = false,
 ): Promise<ScanListResponse | null> {
   if (!isLiveBackend()) return null;
 
   try {
     return await request<ScanListResponse>(
-      `/scans?limit=${limit}&offset=${offset}`,
+      `/scans?limit=${limit}&offset=${offset}&include_photo=${includePhoto}`,
       { method: 'GET' },
     );
   } catch {

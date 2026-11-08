@@ -74,6 +74,7 @@ export function ProfileScreen() {
   const onExportData = useCallback(async () => {
     try {
       const data = await exportData();
+      const filename = `glownome-data-${data.exportedAt.split('T')[0]}.json`;
       const jsonString = JSON.stringify(data, null, 2);
 
       if (Platform.OS === 'web') {
@@ -81,7 +82,7 @@ export function ProfileScreen() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `glownome-data-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
       } else {

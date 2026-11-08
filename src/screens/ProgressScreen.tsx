@@ -6,7 +6,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { EmptyState, GlowBackground, PrimaryButton, ScreenHeader, SectionTitle } from '../components';
 import { RootStackParamList } from '../navigation/types';
-import { listScans, listScansFromBackend } from '../api';
+import { listScans, listScansFromBackend, ScanListItem } from '../api';
 import { ScanRecord } from '../api/scans';
 import { palette, shadow } from '../theme';
 
@@ -16,18 +16,10 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
-interface BackendScan {
-  id: string;
-  capturedAt: string;
-  hasAnalysis: boolean;
-  overallScore?: number;
-  photoUrl?: string;
-}
-
 export function ProgressScreen() {
   const navigation = useNavigation<Nav>();
   const [scans, setScans] = useState<ScanRecord[] | null>(null);
-  const [backendScans, setBackendScans] = useState<BackendScan[] | null>(null);
+  const [backendScans, setBackendScans] = useState<ScanListItem[] | null>(null);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [useBackend, setUseBackend] = useState(false);
@@ -38,13 +30,15 @@ export function ProgressScreen() {
       setLoading(true);
 
       const load = async () => {
-        const backendData = await listScansFromBackend(50, 0);
+        // Try backend first with include_photo=true for thumbnails
+        const backendData = await listScansFromBackend(50, 0, true);
         if (backendData && !cancelled) {
           setBackendScans(backendData.scans);
           setTotal(backendData.total);
           setUseBackend(true);
           setLoading(false);
         } else {
+          // Fall back to local AsyncStorage
           const localScans = await listScans();
           if (!cancelled) {
             setScans(localScans);
@@ -115,7 +109,7 @@ export function ProgressScreen() {
                       { label: 'Latest', record: newest },
                     ].map(({ label, record }) => {
                       const photoUri = useBackend
-                        ? (record as BackendScan).photoUrl
+                        ? (record as ScanListItem).photoUri
                         : (record as ScanRecord).photoUri;
                       return photoUri ? (
                         <View key={label} className="flex-1">
@@ -141,11 +135,11 @@ export function ProgressScreen() {
                 />
                 {displayScans.map((scan) => {
                   const photoUri = useBackend
-                    ? (scan as BackendScan).photoUrl
+                    ? (scan as ScanListItem).photoUri
                     : (scan as ScanRecord).photoUri;
                   const headline = useBackend
-                    ? (scan as BackendScan).hasAnalysis
-                      ? `Score: ${(scan as BackendScan).overallScore ?? 'N/A'}`
+                    ? (scan as ScanListItem).hasAnalysis
+                      ? `Score: ${(scan as ScanListItem).overallScore ?? 'N/A'}`
                       : 'Not analysed yet'
                     : (scan as ScanRecord).analysis
                       ? (scan as ScanRecord).analysis!.headline
