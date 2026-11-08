@@ -1,0 +1,44 @@
+{
+  "cli": {
+    "version": ">= 7.8.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "placeholder-set-via-eas-env",
+        "EXPO_PUBLIC_SUPABASE_URL": "placeholder-set-via-eas-env",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "placeholder-set-via-eas-env"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "placeholder-set-via-eas-env",
+        "EXPO_PUBLIC_SUPABASE_URL": "placeholder-set-via-eas-env",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "placeholder-set-via-eas-env"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "placeholder-set-via-eas-env",
+        "EXPO_PUBLIC_SUPABASE_URL": "placeholder-set-via-eas-env",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "placeholder-set-via-eas-env"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

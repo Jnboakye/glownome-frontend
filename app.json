@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.glownome.mvp",
+      "bundleIdentifier": "de.glownome.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Glownome uses the front camera to scan your skin. The photo is used for your analysis and nothing else.",
         "NSPhotoLibraryUsageDescription": "Glownome uses your photo library so you can pick an existing skin photo."
@@ -22,7 +22,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "app.glownome.mvp"
+      "package": "de.glownome.app",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -43,7 +47,8 @@
           "cameraPermission": "Glownome uses the front camera to scan your skin.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }
