@@ -52,11 +52,12 @@ export function delay<T>(value: T, ms = 900): Promise<T> {
  * Get the Supabase access token for authenticated requests.
  *
  * Imported dynamically to avoid circular dependencies with the auth system.
- * Returns null when not signed in.
+ * Returns null when not signed in or Supabase is not configured.
  */
 async function getAccessToken(): Promise<string | null> {
   try {
     const { supabase } = await import('../lib/supabase');
+    if (!supabase) return null;
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -96,7 +97,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 401) {
     try {
       const { supabase } = await import('../lib/supabase');
-      await supabase.auth.signOut();
+      if (supabase !== null) {
+        await supabase.auth.signOut();
+      }
     } catch {
       // Non-fatal: the auth state will be cleared anyway.
     }
@@ -105,12 +108,22 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let message = `Request failed (${response.status}) for ${path}`;
+    let code: string | undefined;
     try {
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as { error?: string; code?: string };
       if (body?.error) message = body.error;
+      if (body?.code) code = body.code;
     } catch {
       // Not every failure has a JSON body — keep the generic message.
     }
+
+    // Special case: 403 with code 'consent_required' means the user hasn't
+    // granted photo-analysis consent yet. Import dynamically to avoid cycles.
+    if (response.status === 403 && code === 'consent_required') {
+      const { ConsentRequiredError } = await import('./gdpr');
+      throw new ConsentRequiredError(message);
+    }
+
     throw new ApiError(message, response.status);
   }
 

@@ -1,15 +1,16 @@
 import React, { useCallback, useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, View } from 'react-native';
 import { Card, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GlowBackground, PrimaryButton, ScreenHeader } from '../components';
 import { RootStackParamList } from '../navigation/types';
 import { saveScan } from '../api';
 import { firstNameOf, useUser } from '../hooks/userContext';
-import { shadow } from '../theme';
+import { useConsent } from '../hooks/useConsent';
+import { palette, shadow } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -22,10 +23,33 @@ const TIPS = [
 export function ScanScreen() {
   const navigation = useNavigation<Nav>();
   const { name } = useUser();
+  const { hasConsent, loading: consentLoading, refresh: refreshConsent } = useConsent();
   const [photoUri, setPhotoUri] = useState<string | undefined>();
   const [photoBase64, setPhotoBase64] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshConsent();
+    }, [refreshConsent]),
+  );
+
+  const requireConsent = useCallback(
+    (action: () => void) => {
+      if (hasConsent === false) {
+        navigation.navigate('Consent', {
+          onSuccess: () => {
+            refreshConsent();
+            action();
+          },
+        });
+      } else {
+        action();
+      }
+    },
+    [hasConsent, navigation, refreshConsent],
+  );
 
   const pickFromLibrary = useCallback(async () => {
     setError(undefined);
@@ -40,7 +64,6 @@ export function ScanScreen() {
         allowsEditing: true,
         aspect: [3, 4],
         quality: 0.85,
-        // The server needs the bytes, not a file:// path the phone owns.
         base64: true,
       });
       if (!result.canceled && result.assets.length > 0) {
@@ -69,6 +92,18 @@ export function ScanScreen() {
       setSaving(false);
     }
   }, [navigation, photoBase64, photoUri]);
+
+  if (consentLoading) {
+    return (
+      <GlowBackground>
+        <SafeAreaView className="flex-1" edges={['top']}>
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator color={palette.ink} />
+          </View>
+        </SafeAreaView>
+      </GlowBackground>
+    );
+  }
 
   return (
     <GlowBackground>
@@ -115,14 +150,14 @@ export function ScanScreen() {
             <PrimaryButton
               label="Open the camera"
               icon="camera-iris"
-              onPress={() => navigation.navigate('ScanCapture')}
+              onPress={() => requireConsent(() => navigation.navigate('ScanCapture'))}
               className="mb-md"
             />
             <PrimaryButton
               label="Choose from library"
               icon="image-outline"
               variant="outline"
-              onPress={() => void pickFromLibrary()}
+              onPress={() => requireConsent(() => void pickFromLibrary())}
               className="mb-md"
             />
             {photoUri ? (

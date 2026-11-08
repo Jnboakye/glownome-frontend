@@ -291,7 +291,9 @@ export function OnboardingProfileScreen({ navigation }: Props) {
                       <View className="h-[1px] bg-outline-strong" />
                       {age && !ageValid ? (
                         <Text className="font-body text-body-sm text-rose mt-md">
-                          {`Enter an age between ${MIN_AGE} and ${MAX_AGE}.`}
+                          {ageValue < MIN_AGE
+                            ? 'You must be at least 16 years old to use Glownome.'
+                            : `Enter an age between ${MIN_AGE} and ${MAX_AGE}.`}
                         </Text>
                       ) : null}
                     </View>

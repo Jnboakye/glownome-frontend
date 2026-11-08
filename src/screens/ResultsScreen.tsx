@@ -18,7 +18,13 @@ import {
   ProfileRow,
 } from '../components';
 import { RootStackParamList } from '../navigation/types';
-import { AnalysisUnavailableError, getProductsByIds, getScan, requestAnalysis } from '../api';
+import {
+  AnalysisUnavailableError,
+  getProductsByIds,
+  getScan,
+  isConsentRequiredError,
+  requestAnalysis,
+} from '../api';
 import { ScanRecord } from '../api/scans';
 import { SkinAnalysis } from '../api/types';
 import { useUser } from '../hooks/userContext';
@@ -71,7 +77,10 @@ export function ResultsScreen({ route, navigation }: Props) {
       );
       setStatus('ready');
     } catch (error) {
-      // No backend yet, or the request failed. Either way, invent nothing.
+      if (isConsentRequiredError(error)) {
+        navigation.navigate('Consent', { onSuccess: () => void load() });
+        return;
+      }
       setStatus(error instanceof AnalysisUnavailableError ? 'unavailable' : 'unavailable');
     }
   }, [scanId]);

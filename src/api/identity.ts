@@ -11,10 +11,11 @@ import { ApiError, isLiveBackend, request } from './client';
 import { supabase } from '../lib/supabase';
 
 /**
- * Returns the current Supabase user id, or null when not signed in.
+ * Returns the current Supabase user id, or null when not signed in or not configured.
  */
 export async function getUserId(): Promise<string | null> {
   try {
+    if (!supabase) return null;
     const {
       data: { session },
     } = await supabase.auth.getSession();
